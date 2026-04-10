@@ -1,0 +1,63 @@
+# Production Profile Configuration
+# This profile requires proper X.509 certificates for secure communication
+
+spring:
+  application:
+    name: dbna-outbound
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# DBNA Network Configuration - Production
+dbna:
+  from-party-id: ${DBNA_FROM_PARTY_ID}  # Required in production
+  from-party-role: ${DBNA_FROM_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/initiator}
+  to-party-role: ${DBNA_TO_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}
+  service-type: ${DBNA_SERVICE_TYPE:}
+  service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
+  action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
+
+# AS4 Configuration - Production Mode (Certificates Required)
+as4:
+  keystore:
+    path: ${KEYSTORE_PATH:/etc/dbna/certs/keystore.jks}
+    password: ${KEYSTORE_PASSWORD}
+    type: ${KEYSTORE_TYPE:JKS}
+  key:
+    alias: ${KEY_ALIAS}
+    password: ${KEY_PASSWORD}
+  truststore:
+    path: ${TRUSTSTORE_PATH:/etc/dbna/certs/truststore.jks}
+    password: ${TRUSTSTORE_PASSWORD}
+    type: ${TRUSTSTORE_TYPE:JKS}
+  ssl:
+    enabled: true  # SSL required for production
+    verify-hostname: true  # Hostname verification enabled for security
+    protocol: ${SSL_PROTOCOL:TLS}
+
+# Logging - Production level
+logging:
+  level:
+    com.opuscapita.dbna: INFO
+    com.helger.phase4: INFO
+    com.helger.commons: WARN
+    org.springframework.web: INFO
+    org.apache.http: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ${LOG_FILE:/var/log/dbna/dbna-outbound.log}
+    max-size: 100MB
+    max-history: 30
+
+# Production-specific settings
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+

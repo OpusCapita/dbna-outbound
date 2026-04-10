@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invalid xmlns="urn:invalid:namespace">
+    <NotAUBLDocument>This is not a valid UBL document</NotAUBLDocument>
+</Invalid>
+

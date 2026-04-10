@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: dbna-outbound
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}  # Default to dev profile
+
+server:
+  port: 8080
+
+# Storage Configuration
+storage:
+  base-path: ${STORAGE_BASE_PATH:${java.io.tmpdir}/dbna-outbound}
+
+# DBNA Network Configuration
+dbna:
+  from-party-id: ${DBNA_FROM_PARTY_ID:${spring.application.name}}
+  from-party-role: ${DBNA_FROM_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/initiator}
+  to-party-role: ${DBNA_TO_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}
+  service-type: ${DBNA_SERVICE_TYPE:}
+  service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
+  action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
+  receiver:
+    endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:8080/as4}
+  retry:
+    max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
+    delay-ms: ${DBNA_RETRY_DELAY_MS:1000}
+
+# AS4 Configuration with X.509 Certificate Support
+# Note: Profile-specific configurations override these defaults
+# - Use 'dev' profile for development (no certificates required)
+# - Use 'prod' profile for production (certificates required)
+as4:
+  keystore:
+    path: ${KEYSTORE_PATH:keystore.jks}
+    password: ${KEYSTORE_PASSWORD:changeit}
+    type: ${KEYSTORE_TYPE:JKS}
+  key:
+    alias: ${KEY_ALIAS:dbna}
+    password: ${KEY_PASSWORD:changeit}
+  truststore:
+    path: ${TRUSTSTORE_PATH:truststore.jks}
+    password: ${TRUSTSTORE_PASSWORD:changeit}
+    type: ${TRUSTSTORE_TYPE:JKS}
+  ssl:
+    enabled: ${SSL_ENABLED:true}
+    verify-hostname: ${SSL_VERIFY_HOSTNAME:true}
+    protocol: ${SSL_PROTOCOL:TLS}
+
+# Logging
+logging:
+  level:
+    com.opuscapita.dbna: INFO
+    com.helger.phase4: INFO
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+

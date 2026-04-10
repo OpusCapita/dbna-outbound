@@ -1,0 +1,138 @@
+# Test Keystore for CertificateUtil Tests
+
+This directory contains test keystores used for testing certificate operations.
+
+## test-keystore.p12
+
+A PKCS12 keystore containing test certificates for unit testing.
+
+**Keystore Details:**
+- Type: PKCS12
+- Password: `testpassword`
+- Location: `src/test/resources/keystores/test-keystore.p12`
+
+**Certificates:**
+
+### 1. testcert (PrivateKeyEntry)
+- Common Name: `Test Certificate`
+- Organization: `DBNA Test`
+- Country: `US`
+- Key Algorithm: RSA 2048-bit
+- Validity: 3650 days (10 years)
+- Purpose: General testing of valid certificates
+
+### 2. expiringcert (PrivateKeyEntry)
+- Common Name: `Expiring Certificate`
+- Organization: `DBNA Test`
+- Country: `US`
+- Key Algorithm: RSA 2048-bit
+- Validity: 15 days
+- Purpose: Testing expiration warnings and threshold checks
+
+### 3. certonly (TrustedCertEntry)
+- Common Name: `Test Certificate` (same as testcert)
+- Organization: `DBNA Test`
+- Country: `US`
+- Purpose: Testing certificate-only entries (without private key)
+
+## Usage in Tests
+
+The keystore is automatically loaded in `CertificateUtilTest.java` using the `@BeforeAll` method. The keystore file is copied from test resources to a temporary directory to simulate real file system operations.
+
+Example:
+```java
+@BeforeAll
+static void setUp(@TempDir Path tempDir) throws Exception {
+    // Copy keystore from resources to temp directory
+    File tempKeystore = tempDir.resolve("test-keystore.p12").toFile();
+    // ... copy logic ...
+
+    keystorePath = tempKeystore.getAbsolutePath();
+    testKeyStore = CertificateUtil.loadKeyStore(
+        keystorePath,
+        KEYSTORE_PASSWORD,
+        KEYSTORE_TYPE
+    );
+}
+```
+
+## Regenerating the Keystore
+
+If you need to regenerate the keystore, use the following commands:
+
+```bash
+cd src/test/resources/keystores
+
+# Create main test certificate (valid for 10 years)
+keytool -genkeypair \
+  -alias testcert \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 3650 \
+  -keystore test-keystore.p12 \
+  -storetype PKCS12 \
+  -storepass testpassword \
+  -keypass testpassword \
+  -dname "CN=Test Certificate, O=DBNA Test, C=US"
+
+# Add expiring certificate (valid for 15 days)
+keytool -genkeypair \
+  -alias expiringcert \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 15 \
+  -keystore test-keystore.p12 \
+  -storetype PKCS12 \
+  -storepass testpassword \
+  -keypass testpassword \
+  -dname "CN=Expiring Certificate, O=DBNA Test, C=US"
+
+# Export and re-import certificate for certificate-only entry
+keytool -exportcert \
+  -alias testcert \
+  -keystore test-keystore.p12 \
+  -storetype PKCS12 \
+  -storepass testpassword \
+  -file testcert.cer
+
+keytool -importcert \
+  -alias certonly \
+  -keystore test-keystore.p12 \
+  -storetype PKCS12 \
+  -storepass testpassword \
+  -file testcert.cer \
+  -noprompt
+
+rm testcert.cer
+```
+
+## Verifying the Keystore
+
+To list the contents of the keystore:
+
+```bash
+keytool -list \
+  -keystore test-keystore.p12 \
+  -storetype PKCS12 \
+  -storepass testpassword
+```
+
+To view detailed information about a specific certificate:
+
+```bash
+keytool -list -v \
+  -keystore test-keystore.p12 \
+  -storetype PKCS12 \
+  -storepass testpassword \
+  -alias testcert
+```
+
+## Security Note
+
+⚠️ **This keystore is for testing purposes only!**
+
+- The password is hardcoded and publicly known
+- The certificates are self-signed
+- Never use this keystore in production
+- Never use the same password for production keystores
+

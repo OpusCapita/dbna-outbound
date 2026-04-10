@@ -1,0 +1,56 @@
+# Development Profile Configuration
+# This profile is designed for local development without requiring certificates
+
+spring:
+  application:
+    name: dbna-outbound
+
+server:
+  port: 8080
+
+# DBNA Network Configuration - Development
+dbna:
+  from-party-id: ${DBNA_FROM_PARTY_ID:dev-sender}
+  from-party-role: ${DBNA_FROM_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/initiator}
+  to-party-role: ${DBNA_TO_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}
+  service-type: ${DBNA_SERVICE_TYPE:}
+  service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
+  action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
+
+# AS4 Configuration - Development Mode (No Certificates Required)
+as4:
+  keystore:
+    path: ${KEYSTORE_PATH:dev-keystore.jks}
+    password: ${KEYSTORE_PASSWORD:changeit}
+    type: ${KEYSTORE_TYPE:JKS}
+  key:
+    alias: ${KEY_ALIAS:dev}
+    password: ${KEY_PASSWORD:changeit}
+  truststore:
+    path: ${TRUSTSTORE_PATH:dev-truststore.jks}
+    password: ${TRUSTSTORE_PASSWORD:changeit}
+    type: ${TRUSTSTORE_TYPE:JKS}
+  ssl:
+    enabled: false  # SSL disabled for development
+    verify-hostname: false  # Hostname verification disabled for development
+    protocol: ${SSL_PROTOCOL:TLS}
+
+# Logging - More verbose for development
+logging:
+  level:
+    com.opuscapita.dbna: DEBUG
+    com.helger.phase4: DEBUG
+    com.helger.commons: INFO
+    org.springframework.web: DEBUG
+    org.apache.http: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Development-specific settings
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+

@@ -1,0 +1,64 @@
+# Test Profile Configuration
+spring:
+  application:
+    name: dbna-outbound-test
+
+# Storage Configuration for tests
+storage:
+  base-path: ${java.io.tmpdir}/dbna-outbound-test
+
+# DBNA Network Configuration - Test
+dbna:
+  from-party-id: test-sender
+  from-party-role: http://test/initiator
+  to-party-role: http://test/responder
+  service-type: ""
+  service: http://test/service
+  action: http://test/action
+  receiver:
+    endpoint-url: http://localhost:8080/as4-test
+  retry:
+    max-attempts: 2
+    delay-ms: 100
+
+# AS4 Configuration - Test Mode
+as4:
+  keystore:
+    path: test-keystore.jks
+    password: testpass
+    type: JKS
+  key:
+    alias: test
+    password: testpass
+  truststore:
+    path: test-truststore.jks
+    password: testpass
+    type: JKS
+  ssl:
+    enabled: false
+    verify-hostname: false
+    protocol: TLS
+
+# Network Configuration - Test
+fake-sending: ""
+stop-sending: ""
+network:
+  retry-count: 2
+  retry-delay: 100
+
+# Sirius Configuration - Test
+sirius:
+  url: http://localhost:8081/sirius-test
+  username: testuser
+  password: testpass
+  size-limit: 1048576
+  timeout: 1
+  retry-count: 2
+  retry-delay: 100
+
+# Logging - Test
+logging:
+  level:
+    com.opuscapita.dbna: DEBUG
+    org.springframework: WARN
+

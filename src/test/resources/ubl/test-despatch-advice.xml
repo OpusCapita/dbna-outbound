@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DespatchAdvice xmlns="urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2"
+                xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+                xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+    <cbc:UBLVersionID>2.3</cbc:UBLVersionID>
+    <cbc:ID>DA-2024-001</cbc:ID>
+    <cbc:IssueDate>2024-03-11</cbc:IssueDate>
+
+    <cac:DespatchLine>
+        <cbc:ID>1</cbc:ID>
+        <cbc:DeliveredQuantity unitCode="EA">10</cbc:DeliveredQuantity>
+        <cac:Item>
+            <cbc:Name>Despatched Item</cbc:Name>
+        </cac:Item>
+    </cac:DespatchLine>
+</DespatchAdvice>
+
