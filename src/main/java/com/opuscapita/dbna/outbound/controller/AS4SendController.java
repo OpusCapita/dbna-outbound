@@ -25,30 +25,35 @@ public class AS4SendController {
     /**
      * Send UBL document via AS4 protocol
      */
-    @PostMapping("/send")
-    public ResponseEntity<AS4SendResponse> sendDocument(@RequestBody AS4SendRequest request) {
-        logger.info("Received request to send UBL document to: {}", request.getReceiverEndpointUrl());
-        
-        // Validate request
-        if (request.getReceiverEndpointUrl() == null || request.getReceiverEndpointUrl().isEmpty()) {
+    @PostMapping("/send/{senderId}/{receiverId}/{docTypeId}/{processId}")
+    public ResponseEntity<AS4SendResponse> sendDocument(
+            @PathVariable String senderId,
+            @PathVariable String receiverId,
+            @PathVariable String docTypeId,
+            @PathVariable String processId,
+            @RequestBody String documentContent) {
+        logger.info("Received request to send UBL document - SenderId: {}, ReceiverId: {}, DocTypeId: {}, ProcessId: {}", 
+            senderId, receiverId, docTypeId, processId);
+
+        // Validate document content
+        if (documentContent == null || documentContent.isEmpty()) {
             AS4SendResponse errorResponse = AS4SendResponse.builder()
                 .success(false)
                 .status("VALIDATION_ERROR")
-                .errorMessage("Receiver endpoint URL is required")
+                .errorMessage("Document content is required")
                 .timestamp(System.currentTimeMillis())
                 .build();
             return ResponseEntity.badRequest().body(errorResponse);
         }
         
-        if (request.getUblDocumentContent() == null || request.getUblDocumentContent().isEmpty()) {
-            AS4SendResponse errorResponse = AS4SendResponse.builder()
-                .success(false)
-                .status("VALIDATION_ERROR")
-                .errorMessage("UBL document content is required")
-                .timestamp(System.currentTimeMillis())
+        // Build AS4SendRequest from path variables and document content
+        AS4SendRequest request = AS4SendRequest.builder()
+                .senderId(senderId)
+                .receiverId(receiverId)
+                .documentType(docTypeId)
+                .processId(processId)
+                .ublDocumentContent(documentContent)
                 .build();
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
         
         // Send document
         AS4SendResponse response = as4SendService.sendAS4Message(request);
