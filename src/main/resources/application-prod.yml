@@ -51,13 +51,12 @@ logging:
     max-size: 100MB
     max-history: 30
 
-# Production-specific settings
+# Actuator Configuration - Disabled for production
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: ""  # Disable all actuator endpoints
   endpoint:
     health:
-      show-details: when-authorized
-
+      enabled: false

@@ -33,6 +33,9 @@ dependencies {
     // Spring Boot
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Spring Boot Actuator for monitoring and management
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
     
     // Spring Cloud Config
     implementation 'org.springframework.cloud:spring-cloud-context'
@@ -69,7 +72,7 @@ dependencies {
     
     // JetBrains annotations for @NotNull, @Nullable, etc.
     implementation 'org.jetbrains:annotations:24.1.0'
-    
+
     // Lombok for cleaner code
     compileOnly 'org.projectlombok:lombok:1.18.30'
     annotationProcessor 'org.projectlombok:lombok:1.18.30'
