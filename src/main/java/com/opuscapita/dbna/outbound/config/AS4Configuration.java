@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import javax.net.ssl.SSLContext;
 import java.io.File;
 import java.io.FileInputStream;
@@ -50,8 +52,8 @@ public class AS4Configuration {
     public IAS4CryptoFactory as4CryptoFactory() {
         logger.info("Initializing AS4 crypto factory with X.509 certificate support");
         AS4CryptoProperties cryptoProps = new AS4CryptoProperties();
-        File keystoreFile = new File(keystorePath);
-        if (keystoreFile.exists()) {
+        
+        if (resourceExists(keystorePath)) {
             logger.info("Loading keystore from: {}", keystorePath);
             cryptoProps.setKeyStorePath(keystorePath);
             cryptoProps.setKeyStorePassword(keystorePassword);
@@ -62,8 +64,8 @@ public class AS4Configuration {
         } else {
             logger.warn("Keystore file not found at: {}. AS4 signing will not be available.", keystorePath);
         }
-        File truststoreFile = new File(truststorePath);
-        if (truststoreFile.exists()) {
+        
+        if (resourceExists(truststorePath)) {
             logger.info("Loading truststore from: {}", truststorePath);
             cryptoProps.setTrustStorePath(truststorePath);
             cryptoProps.setTrustStorePassword(truststorePassword);
@@ -82,24 +84,17 @@ public class AS4Configuration {
                 return HttpClients.createDefault();
             }
             logger.info("Configuring secure HTTP client with SSL/TLS support");
-            KeyStore keyStore = null;
-            File keystoreFile = new File(keystorePath);
-            if (keystoreFile.exists()) {
-                keyStore = KeyStore.getInstance(keystoreType);
-                try (FileInputStream fis = new FileInputStream(keystoreFile)) {
-                    keyStore.load(fis, keystorePassword.toCharArray());
-                }
+            
+            KeyStore keyStore = loadKeyStoreFromResource(keystorePath, keystorePassword, keystoreType);
+            if (keyStore != null) {
                 logger.info("Keystore loaded for SSL client authentication");
             }
-            KeyStore trustStore = null;
-            File truststoreFile = new File(truststorePath);
-            if (truststoreFile.exists()) {
-                trustStore = KeyStore.getInstance(truststoreType);
-                try (FileInputStream fis = new FileInputStream(truststoreFile)) {
-                    trustStore.load(fis, truststorePassword.toCharArray());
-                }
+            
+            KeyStore trustStore = loadKeyStoreFromResource(truststorePath, truststorePassword, truststoreType);
+            if (trustStore != null) {
                 logger.info("Truststore loaded for SSL certificate verification");
             }
+            
             SSLContextBuilder sslContextBuilder = new SSLContextBuilder();
             sslContextBuilder.setProtocol(sslProtocol);
             if (keyStore != null) {
@@ -129,16 +124,105 @@ public class AS4Configuration {
             return HttpClients.createDefault();
         }
     }
+    
+    /**
+     * Load a keystore from file system or classpath
+     */
+    private KeyStore loadKeyStoreFromResource(String path, String password, String type) {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(type);
+            
+            // Try file system first
+            File file = new File(path);
+            if (file.exists()) {
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    keyStore.load(fis, password.toCharArray());
+                    return keyStore;
+                }
+            }
+            
+            // Try classpath
+            Resource resource = new ClassPathResource(path);
+            if (resource.exists()) {
+                keyStore.load(resource.getInputStream(), password.toCharArray());
+                return keyStore;
+            }
+            
+            // Try classpath with keystores/ prefix
+            if (!path.startsWith("keystores/")) {
+                resource = new ClassPathResource("keystores/" + path);
+                if (resource.exists()) {
+                    keyStore.load(resource.getInputStream(), password.toCharArray());
+                    return keyStore;
+                }
+            }
+            
+            logger.warn("Keystore not found at: {}", path);
+            return null;
+        } catch (Exception e) {
+            logger.error("Error loading keystore from: {}", path, e);
+            return null;
+        }
+    }
+    
+    /**
+     * Check if a resource exists in file system or classpath
+     */
+    private boolean resourceExists(String path) {
+        if (path == null || path.isEmpty()) {
+            return false;
+        }
+        
+        // Check file system first
+        File file = new File(path);
+        if (file.exists()) {
+            return true;
+        }
+        
+        // Check classpath
+        try {
+            Resource resource = new ClassPathResource(path);
+            if (resource.exists()) {
+                return true;
+            }
+            
+            // Try with keystores/ prefix
+            if (!path.startsWith("keystores/")) {
+                resource = new ClassPathResource("keystores/" + path);
+                return resource.exists();
+            }
+        } catch (Exception e) {
+            logger.debug("Error checking classpath resource: {}", path, e);
+        }
+        
+        return false;
+    }
+    
     public String getKeystorePath() {
         return keystorePath;
     }
+    
+    public String getKeystorePassword() {
+        return keystorePassword;
+    }
+    
+    public String getKeystoreType() {
+        return keystoreType;
+    }
+    
     public String getKeyAlias() {
         return keyAlias;
     }
-    public boolean isKeystoreConfigured() {
-        return new File(keystorePath).exists();
+    
+    public String getKeyPassword() {
+        return keyPassword;
     }
+    
+    public boolean isKeystoreConfigured() {
+        return resourceExists(keystorePath);
+    }
+    
     public boolean isTruststoreConfigured() {
-        return new File(truststorePath).exists();
+        return resourceExists(truststorePath);
     }
 }

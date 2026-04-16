@@ -17,15 +17,15 @@ dbna:
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
   action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
 
-# AS4 Configuration - Development Mode (No Certificates Required)
+# AS4 Configuration - Development Mode (Using test-keystore.p12 from classpath)
 as4:
   keystore:
-    path: ${KEYSTORE_PATH:dev-keystore.jks}
-    password: ${KEYSTORE_PASSWORD:changeit}
-    type: ${KEYSTORE_TYPE:JKS}
+    path: ${KEYSTORE_PATH:test-keystore.p12}
+    password: ${KEYSTORE_PASSWORD:testpassword}
+    type: ${KEYSTORE_TYPE:PKCS12}
   key:
-    alias: ${KEY_ALIAS:dev}
-    password: ${KEY_PASSWORD:changeit}
+    alias: ${KEY_ALIAS:testcert}
+    password: ${KEY_PASSWORD:testpassword}
   truststore:
     path: ${TRUSTSTORE_PATH:dev-truststore.jks}
     password: ${TRUSTSTORE_PASSWORD:changeit}

@@ -47,10 +47,8 @@ public class CertificateController {
             if (keystoreConfigured) {
                 KeyStore keyStore = CertificateUtil.loadKeyStore(
                     as4Configuration.getKeystorePath(),
-                    System.getenv("KEYSTORE_PASSWORD") != null ? 
-                        System.getenv("KEYSTORE_PASSWORD") : "changeit",
-                    System.getenv("KEYSTORE_TYPE") != null ? 
-                        System.getenv("KEYSTORE_TYPE") : "JKS"
+                    as4Configuration.getKeystorePassword(),
+                    as4Configuration.getKeystoreType()
                 );
                 
                 if (keyStore != null) {
