@@ -7,8 +7,9 @@ RUN ./gradlew bootJar --no-daemon
 
 # Stage 2: Runtime stage (minimal image)
 FROM eclipse-temurin:21-jre-alpine
-LABEL maintainer="DBNA Team"
-LABEL description="DBNA Outbound Service - Kubernetes Ready"
+LABEL author="Kamil Barnik <kamil.barnik@gep.com>"
+LABEL maintainer="GEP DBNA Team"
+LABEL description="DBNA Outbound Service"
 
 # Create app user for security
 RUN addgroup -g 1000 appuser && \
