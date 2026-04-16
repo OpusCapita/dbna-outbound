@@ -8,7 +8,6 @@ import com.opuscapita.dbna.outbound.service.SMLLookupService;
 import com.opuscapita.dbna.outbound.service.SMPService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,17 +27,25 @@ public class AS4SendController {
     
     private static final Logger logger = LoggerFactory.getLogger(AS4SendController.class);
     
-    @Autowired
-    private AS4SendService as4SendService;
+    private final AS4SendService as4SendService;
+    private final SMLLookupService smlLookupService;
+    private final SMPService smpService;
+    private final CertificateValidationService certificateValidationService;
     
-    @Autowired
-    private SMLLookupService smlLookupService;
-    
-    @Autowired
-    private SMPService smpService;
-    
-    @Autowired
-    private CertificateValidationService certificateValidationService;
+    /**
+     * Constructor injection for all dependencies
+     * Ensures all required services are available and promotes immutability
+     */
+    public AS4SendController(
+            AS4SendService as4SendService,
+            SMLLookupService smlLookupService,
+            SMPService smpService,
+            CertificateValidationService certificateValidationService) {
+        this.as4SendService = as4SendService;
+        this.smlLookupService = smlLookupService;
+        this.smpService = smpService;
+        this.certificateValidationService = certificateValidationService;
+    }
     
     /**
      * Send UBL document via AS4 protocol over DBNA network

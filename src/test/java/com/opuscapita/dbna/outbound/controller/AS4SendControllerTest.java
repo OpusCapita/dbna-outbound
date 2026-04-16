@@ -47,25 +47,9 @@ class AS4SendControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        controller = new AS4SendController();
-        // Use reflection to inject mocks
-        java.lang.reflect.Field as4Field = AS4SendController.class.getDeclaredField("as4SendService");
-        as4Field.setAccessible(true);
-        as4Field.set(controller, as4SendService);
-        
-        java.lang.reflect.Field smlField = AS4SendController.class.getDeclaredField("smlLookupService");
-        smlField.setAccessible(true);
-        smlField.set(controller, smlLookupService);
-        
-        java.lang.reflect.Field smpField = AS4SendController.class.getDeclaredField("smpService");
-        smpField.setAccessible(true);
-        smpField.set(controller, smpService);
-        
-        java.lang.reflect.Field certField = AS4SendController.class.getDeclaredField("certificateValidationService");
-        certField.setAccessible(true);
-        certField.set(controller, certificateValidationService);
+        // Use constructor injection instead of reflection
+        controller = new AS4SendController(as4SendService, smlLookupService, smpService, certificateValidationService);
 
-        // ...existing code...
         // Load test document
         testDocumentContent = TestResourceLoader.loadTestInvoice();
     }
