@@ -20,7 +20,7 @@ dbna:
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
   action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
   receiver:
-    endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:8080/as4}
+    endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:8080/api/as4}
   retry:
     max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
     delay-ms: ${DBNA_RETRY_DELAY_MS:1000}

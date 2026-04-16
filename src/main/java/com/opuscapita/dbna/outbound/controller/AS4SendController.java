@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
  * - AS4 message transmission with proper DBNA PMode parameters
  */
 @RestController
-@RequestMapping("/as4")
+@RequestMapping("/api/as4")
 public class AS4SendController {
     
     private static final Logger logger = LoggerFactory.getLogger(AS4SendController.class);

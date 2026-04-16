@@ -16,7 +16,7 @@ import java.util.Map;
  * REST Controller for certificate management and information
  */
 @RestController
-@RequestMapping("/api/v1/certificates")
+@RequestMapping("/testapi/certificates")
 public class CertificateController {
     
     private static final Logger logger = LoggerFactory.getLogger(CertificateController.class);

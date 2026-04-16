@@ -9,7 +9,7 @@ data:
   DBNA_TO_PARTY_ROLE: "http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder"
   DBNA_SERVICE: "http://dbna.opuscapita.com/services"
   DBNA_ACTION: "http://dbna.opuscapita.com/sendDocument"
-  DBNA_RECEIVER_ENDPOINT_URL: "http://localhost:8080/as4"
+  DBNA_RECEIVER_ENDPOINT_URL: "http://localhost:8080/api/as4"
   DBNA_RETRY_MAX_ATTEMPTS: "3"
   DBNA_RETRY_DELAY_MS: "1000"
   KEYSTORE_TYPE: "JKS"
