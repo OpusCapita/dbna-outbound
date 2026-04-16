@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
  * REST Controller for sending UBL documents via AS4
  */
 @RestController
-@RequestMapping("/api/v1/as4")
+@RequestMapping("/as4")
 public class AS4SendController {
     
     private static final Logger logger = LoggerFactory.getLogger(AS4SendController.class);

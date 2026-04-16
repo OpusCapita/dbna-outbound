@@ -39,7 +39,7 @@ class AS4SendControllerTest {
         java.lang.reflect.Field field = AS4SendController.class.getDeclaredField("as4SendService");
         field.setAccessible(true);
         field.set(controller, as4SendService);
-
+// ...existing code...
         // Load test document
         testDocumentContent = TestResourceLoader.loadTestInvoice();
     }
@@ -51,7 +51,8 @@ class AS4SendControllerTest {
         String senderId = "sender-001";
         String receiverId = "receiver-001";
         String docTypeId = "invoice";
-        String processId = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0";
+        String processId = "urn:dbna:process:invoice:1.0";
+        // Endpoint: POST /as4/sendas4/{senderId}/{receiverId}/{docTypeId}/{processId}
 
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
