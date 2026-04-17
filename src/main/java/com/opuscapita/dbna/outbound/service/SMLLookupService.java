@@ -158,6 +158,18 @@ public class SMLLookupService {
             
             logger.warn("No NAPTR record with service type {} found", NAPTR_SERVICE_TYPE);
             return null;
+        } catch (javax.naming.NameNotFoundException e) {
+            // DNS name not found - party is not registered in SML
+            logger.warn("Party not found in SML - DNS name not found: {}", dnsName);
+            throw new NamingException("Party identifier not found in SML registry: " + e.getMessage());
+        } catch (javax.naming.ServiceUnavailableException e) {
+            // DNS service unavailable
+            logger.warn("DNS service unavailable while querying: {}", dnsName);
+            throw new NamingException("DNS service unavailable: " + e.getMessage());
+        } catch (javax.naming.CommunicationException e) {
+            // Network communication error
+            logger.warn("DNS communication error while querying: {}", dnsName);
+            throw new NamingException("DNS communication error: " + e.getMessage());
         } finally {
             dirContext.close();
         }
