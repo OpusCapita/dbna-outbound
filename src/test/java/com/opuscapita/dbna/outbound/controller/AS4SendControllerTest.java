@@ -1,5 +1,9 @@
 package com.opuscapita.dbna.outbound.controller;
 
+import com.opuscapita.dbna.outbound.exception.DocumentValidationException;
+import com.opuscapita.dbna.outbound.exception.SMLLookupException;
+import com.opuscapita.dbna.outbound.exception.SMPDiscoveryException;
+import com.opuscapita.dbna.outbound.exception.AS4TransmissionException;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
 import com.opuscapita.dbna.outbound.service.AS4SendService;
@@ -106,16 +110,10 @@ class AS4SendControllerTest {
         String processId = "urn:dbna:process:invoice:1.0";
         String emptyContent = "";
 
-        // Act
-        ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, emptyContent);
-
-        // Assert
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertFalse(response.getBody().isSuccess());
-        assertEquals("VALIDATION_ERROR", response.getBody().getStatus());
-        assertEquals("Document content is required", response.getBody().getErrorMessage());
+        // Act & Assert
+        assertThrows(DocumentValidationException.class, () ->
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, emptyContent),
+            "Should throw DocumentValidationException for empty content");
 
         // Verify service was not called
         verify(as4SendService, never()).sendAS4Message(any());
@@ -130,16 +128,10 @@ class AS4SendControllerTest {
         String docTypeId = "invoice";
         String processId = "urn:dbna:process:invoice:1.0";
 
-        // Act
-        ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, null);
-
-        // Assert
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertFalse(response.getBody().isSuccess());
-        assertEquals("VALIDATION_ERROR", response.getBody().getStatus());
-        assertEquals("Document content is required", response.getBody().getErrorMessage());
+        // Act & Assert
+        assertThrows(DocumentValidationException.class, () ->
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, null),
+            "Should throw DocumentValidationException for null content");
 
         // Verify service was not called
         verify(as4SendService, never()).sendAS4Message(any());
@@ -172,16 +164,10 @@ class AS4SendControllerTest {
         when(as4SendService.sendAS4Message(any(AS4SendRequest.class)))
             .thenReturn(failureResponse);
 
-        // Act
-        ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, testDocumentContent);
-
-        // Assert
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertFalse(response.getBody().isSuccess());
-        assertEquals("ERROR", response.getBody().getStatus());
-        assertEquals("Failed to send AS4 message", response.getBody().getErrorMessage());
+        // Act & Assert
+        assertThrows(AS4TransmissionException.class, () ->
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            "Should throw AS4TransmissionException when AS4 message transmission fails");
     }
 
     @Test
@@ -267,16 +253,10 @@ class AS4SendControllerTest {
         String docTypeId = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2";
         String processId = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0";
 
-        // Act
-        ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, testDocumentContent);
-
-        // Assert
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertFalse(response.getBody().isSuccess());
-        assertEquals("VALIDATION_ERROR", response.getBody().getStatus());
-        assertTrue(response.getBody().getErrorMessage().contains("scheme::identifier"));
+        // Act & Assert
+        assertThrows(DocumentValidationException.class, () ->
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            "Should throw DocumentValidationException for invalid receiver ID format");
 
         // SML/SMP should not be called with invalid receiver ID
         verify(smlLookupService, never()).lookupSMPEndpoint(any(), any());
@@ -336,15 +316,10 @@ class AS4SendControllerTest {
         when(smlLookupService.lookupSMPEndpoint("GLN", "9999999999999"))
             .thenReturn(null);
 
-        // Act
-        ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, testDocumentContent);
-
-        // Assert
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertFalse(response.getBody().isSuccess());
-        assertEquals("SML_LOOKUP_FAILED", response.getBody().getStatus());
+        // Act & Assert
+        assertThrows(SMLLookupException.class, () ->
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            "Should throw SMLLookupException when SML lookup returns null");
         
         // SMP should not be called if SML lookup fails
         verify(smpService, never()).discoverServiceEndpoint(any(), any(), any(), any());
@@ -360,18 +335,12 @@ class AS4SendControllerTest {
         String processId = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0";
 
         when(smlLookupService.lookupSMPEndpoint("GLN", "9876543210987"))
-            .thenThrow(new Exception("DNS query failed"));
+            .thenThrow(new SMLLookupException("DNS query failed"));
 
-        // Act
-        ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, testDocumentContent);
-
-        // Assert
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertFalse(response.getBody().isSuccess());
-        assertEquals("SML_LOOKUP_ERROR", response.getBody().getStatus());
-        assertTrue(response.getBody().getErrorMessage().contains("DNS query failed"));
+        // Act & Assert
+        assertThrows(SMLLookupException.class, () ->
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            "Should throw SMLLookupException when SML lookup fails");
     }
 
     @Test
@@ -435,15 +404,10 @@ class AS4SendControllerTest {
         when(smpService.discoverServiceEndpoint(smpEndpoint, receiverId, docTypeId, processId))
             .thenReturn(null);
 
-        // Act
-        ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, testDocumentContent);
-
-        // Assert
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertFalse(response.getBody().isSuccess());
-        assertEquals("SMP_DISCOVERY_FAILED", response.getBody().getStatus());
+        // Act & Assert
+        assertThrows(SMPDiscoveryException.class, () ->
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            "Should throw SMPDiscoveryException when service endpoint is not found");
         
         // AS4 service should not be called if SMP discovery fails
         verify(as4SendService, never()).sendAS4Message(any());

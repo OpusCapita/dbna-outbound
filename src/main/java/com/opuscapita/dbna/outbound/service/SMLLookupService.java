@@ -2,6 +2,7 @@ package com.opuscapita.dbna.outbound.service;
 
 import com.google.common.hash.Hashing;
 import com.google.common.io.BaseEncoding;
+import com.opuscapita.dbna.outbound.exception.SMLLookupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,9 +49,11 @@ public class SMLLookupService {
      * @param identifierScheme The identifier scheme (e.g., "GLN", "0192")
      * @param partyIdentifier The party identifier
      * @return The SMP service endpoint URL, or null if not found
-     * @throws Exception if the lookup fails
+     * @throws IllegalArgumentException if identifierScheme or partyIdentifier is null or empty
+     * @throws SMLLookupException if DNS lookup fails or party not found in SML
      */
-    public String lookupSMPEndpoint(String identifierScheme, String partyIdentifier) throws Exception {
+    public String lookupSMPEndpoint(String identifierScheme, String partyIdentifier) 
+            throws IllegalArgumentException, SMLLookupException {
         if (identifierScheme == null || identifierScheme.trim().isEmpty()) {
             throw new IllegalArgumentException("Identifier scheme is required");
         }
@@ -66,8 +69,8 @@ public class SMLLookupService {
             logger.debug("Constructed DNS name for SML query: {}", dnsName);
             
             // Step 2: Query NAPTR records from DNS
-            String smpUrl = queryNAPTRRecord(dnsName);
-            
+            String smpUrl = queryNAPTRRecord(dnsName, identifierScheme, partyIdentifier);
+
             if (smpUrl != null) {
                 logger.info("Successfully resolved SMP endpoint: {}", smpUrl);
                 return smpUrl;
@@ -75,12 +78,11 @@ public class SMLLookupService {
                 logger.warn("No SMP endpoint found for scheme: {}, identifier: {}", identifierScheme, partyIdentifier);
                 return null;
             }
-        } catch (NamingException e) {
-            logger.error("DNS lookup failed for party: {}::{}", identifierScheme, partyIdentifier, e);
-            throw new Exception("SML lookup failed: " + e.getMessage(), e);
-        } catch (Exception e) {
-            logger.error("Error during SML lookup", e);
+        } catch (SMLLookupException e) {
             throw e;
+        } catch (Exception e) {
+            logger.error("Unexpected error during SML lookup for {}::{}", identifierScheme, partyIdentifier, e);
+            throw new SMLLookupException("Unexpected error during SML lookup: " + e.getMessage(), e);
         }
     }
     
@@ -122,21 +124,25 @@ public class SMLLookupService {
      * Queries NAPTR records from DNS
      * 
      * Returns the URL from the reg.exp. field of the NAPTR record matching the DBNA service type
+     * 
+     * @throws SMLLookupException if DNS query fails or party not found in SML
      */
-    private String queryNAPTRRecord(String dnsName) throws NamingException {
+    private String queryNAPTRRecord(String dnsName, String identifierScheme, String partyIdentifier) 
+            throws SMLLookupException {
         Hashtable<String, String> env = new Hashtable<>();
         env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
         env.put("java.naming.provider.url", "dns://" + dnsServer);
         
-        DirContext dirContext = new InitialDirContext(env);
-        
+        DirContext dirContext = null;
         try {
+            dirContext = new InitialDirContext(env);
             logger.debug("Querying NAPTR records for: {}", dnsName);
             Attributes attributes = dirContext.getAttributes(dnsName, new String[]{"NAPTR"});
             
             Attribute naptr = attributes.get("NAPTR");
             if (naptr == null) {
-                logger.warn("No NAPTR records found for: {}", dnsName);
+                logger.debug("No NAPTR records found for party {}::{} at DNS name: {}", 
+                    identifierScheme, partyIdentifier, dnsName);
                 return null;
             }
             
@@ -156,22 +162,52 @@ public class SMLLookupService {
                 }
             }
             
-            logger.warn("No NAPTR record with service type {} found", NAPTR_SERVICE_TYPE);
+            logger.debug("No NAPTR record with service type {} found for {}::{}", 
+                NAPTR_SERVICE_TYPE, identifierScheme, partyIdentifier);
             return null;
+            
         } catch (javax.naming.NameNotFoundException e) {
-            // DNS name not found - party is not registered in SML
-            logger.warn("Party not found in SML - DNS name not found: {}", dnsName);
-            throw new NamingException("Party identifier not found in SML registry: " + e.getMessage());
+            // Party identifier not registered in SML - this is expected behavior, not an error
+            logger.info("Party identifier not found in SML registry: {}::{} (DNS name: {})", 
+                identifierScheme, partyIdentifier, dnsName);
+            throw new SMLLookupException(
+                String.format("Party '%s::%s' is not registered in the DBNA SML registry. " +
+                    "Please verify the party identifier is correct and registered in the DBNA network.",
+                    identifierScheme, partyIdentifier), 
+                e);
+                
         } catch (javax.naming.ServiceUnavailableException e) {
-            // DNS service unavailable
-            logger.warn("DNS service unavailable while querying: {}", dnsName);
-            throw new NamingException("DNS service unavailable: " + e.getMessage());
+            // DNS service temporarily unavailable
+            logger.warn("DNS service unavailable while querying SML for {}::{}", 
+                identifierScheme, partyIdentifier, e);
+            throw new SMLLookupException(
+                "DNS service is currently unavailable. Please try again later.", 
+                e);
+                
         } catch (javax.naming.CommunicationException e) {
-            // Network communication error
-            logger.warn("DNS communication error while querying: {}", dnsName);
-            throw new NamingException("DNS communication error: " + e.getMessage());
+            // Network communication error with DNS server
+            logger.warn("DNS communication error while querying SML for {}::{}", 
+                identifierScheme, partyIdentifier, e);
+            throw new SMLLookupException(
+                "Network communication error while querying SML. Please check your network connection and DNS settings.", 
+                e);
+                
+        } catch (NamingException e) {
+            // Generic DNS naming exception
+            logger.error("DNS lookup error while querying SML for {}::{}", 
+                identifierScheme, partyIdentifier, e);
+            throw new SMLLookupException(
+                "DNS lookup failed: " + e.getMessage(), 
+                e);
+                
         } finally {
-            dirContext.close();
+            if (dirContext != null) {
+                try {
+                    dirContext.close();
+                } catch (NamingException e) {
+                    logger.debug("Error closing DNS context", e);
+                }
+            }
         }
     }
     
