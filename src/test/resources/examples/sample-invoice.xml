@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xac:common:agg:comp:unqualified:v2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xac:common:basic:comp:unqualified:v2">
+
+    <!-- Document Metadata -->
+    <cbc:UBLVersionID>2.3</cbc:UBLVersionID>
+    <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:CustomizationID>
+    <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
+
+    <!-- Invoice Identification -->
+    <cbc:ID>INV-2026-001</cbc:ID>
+    <cbc:IssueDate>2026-04-17</cbc:IssueDate>
+    <cbc:DueDate>2026-05-17</cbc:DueDate>
+    <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+    <cbc:Note>Sample invoice for testing AS4 transmission</cbc:Note>
+
+    <!-- Buyer Information -->
+    <cac:BuyerCustomerParty>
+        <cac:Party>
+            <cbc:EndpointID schemeID="GLN">9876543210987</cbc:EndpointID>
+            <cac:PartyName>
+                <cbc:Name>Example Buyer Corp</cbc:Name>
+            </cac:PartyName>
+            <cac:PostalAddress>
+                <cbc:StreetName>Receiver Street 1</cbc:StreetName>
+                <cbc:CityName>Receiver City</cbc:CityName>
+                <cbc:PostalZone>12345</cbc:PostalZone>
+                <cac:Country>
+                    <cbc:IdentificationCode>US</cbc:IdentificationCode>
+                </cac:Country>
+            </cac:PostalAddress>
+            <cac:PartyTaxScheme>
+                <cbc:CompanyID>US123456789</cbc:CompanyID>
+                <cac:TaxScheme>
+                    <cbc:ID>VAT</cbc:ID>
+                </cac:TaxScheme>
+            </cac:PartyTaxScheme>
+            <cac:PartyLegalEntity>
+                <cbc:RegistrationName>Example Buyer Corporation</cbc:RegistrationName>
+                <cbc:CompanyID schemeID="GLN">9876543210987</cbc:CompanyID>
+            </cac:PartyLegalEntity>
+        </cac:Party>
+    </cac:BuyerCustomerParty>
+
+    <!-- Seller Information -->
+    <cac:SellerSupplierParty>
+        <cac:Party>
+            <cbc:EndpointID schemeID="GLN">1234567890123</cbc:EndpointID>
+            <cac:PartyName>
+                <cbc:Name>Example Seller Inc</cbc:Name>
+            </cac:PartyName>
+            <cac:PostalAddress>
+                <cbc:StreetName>Sender Street 1</cbc:StreetName>
+                <cbc:CityName>Sender City</cbc:CityName>
+                <cbc:PostalZone>54321</cbc:PostalZone>
+                <cac:Country>
+                    <cbc:IdentificationCode>US</cbc:IdentificationCode>
+                </cac:Country>
+            </cac:PostalAddress>
+            <cac:PartyTaxScheme>
+                <cbc:CompanyID>US987654321</cbc:CompanyID>
+                <cac:TaxScheme>
+                    <cbc:ID>VAT</cbc:ID>
+                </cac:TaxScheme>
+            </cac:PartyTaxScheme>
+            <cac:PartyLegalEntity>
+                <cbc:RegistrationName>Example Seller Incorporated</cbc:RegistrationName>
+                <cbc:CompanyID schemeID="GLN">1234567890123</cbc:CompanyID>
+            </cac:PartyLegalEntity>
+        </cac:Party>
+    </cac:SellerSupplierParty>
+
+    <!-- Accounting Cost -->
+    <cbc:DocumentCurrencyCode>USD</cbc:DocumentCurrencyCode>
+
+    <!-- Tax Total -->
+    <cac:TaxTotal>
+        <cbc:TaxAmount currencyID="USD">19.00</cbc:TaxAmount>
+        <cac:TaxSubtotal>
+            <cbc:TaxableAmount currencyID="USD">100.00</cbc:TaxableAmount>
+            <cbc:TaxAmount currencyID="USD">19.00</cbc:TaxAmount>
+            <cbc:Percent>19</cbc:Percent>
+            <cac:TaxCategory>
+                <cbc:ID>S</cbc:ID>
+                <cac:TaxScheme>
+                    <cbc:ID>VAT</cbc:ID>
+                </cac:TaxScheme>
+            </cac:TaxCategory>
+        </cac:TaxSubtotal>
+    </cac:TaxTotal>
+
+    <!-- Legal Monetary Total -->
+    <cac:LegalMonetaryTotal>
+        <cbc:LineExtensionAmount currencyID="USD">100.00</cbc:LineExtensionAmount>
+        <cbc:TaxExclusiveAmount currencyID="USD">100.00</cbc:TaxExclusiveAmount>
+        <cbc:TaxInclusiveAmount currencyID="USD">119.00</cbc:TaxInclusiveAmount>
+        <cbc:PayableAmount currencyID="USD">119.00</cbc:PayableAmount>
+    </cac:LegalMonetaryTotal>
+
+    <!-- Invoice Line -->
+    <cac:InvoiceLine>
+        <cbc:ID>1</cbc:ID>
+        <cbc:LineExtensionAmount currencyID="USD">100.00</cbc:LineExtensionAmount>
+
+        <!-- Item Details -->
+        <cac:Item>
+            <cbc:Name>Sample Product</cbc:Name>
+            <cbc:Description>Example product for testing</cbc:Description>
+        </cac:Item>
+
+        <!-- Price Information -->
+        <cac:Price>
+            <cbc:PriceAmount currencyID="USD">100.00</cbc:PriceAmount>
+            <cbc:BaseQuantity unitCode="EA">1</cbc:BaseQuantity>
+        </cac:Price>
+
+        <!-- Quantity -->
+        <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>
+    </cac:InvoiceLine>
+
+</Invoice>
+

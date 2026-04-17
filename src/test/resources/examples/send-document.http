@@ -1,0 +1,77 @@
+### Health Check Endpoint
+GET http://localhost:8080/api/as4/health
+
+###
+
+### Send Invoice Document
+# This example sends a sample invoice document via AS4
+#
+# Path Parameters:
+#   - senderId: GLN::1234567890123 (Sender's GLN)
+#   - receiverId: GLN::9876543210987 (Receiver's GLN)
+#   - docTypeId: urn:oasis:names:specification:ubl:schema:xsd:Invoice-2 (UBL Invoice)
+#   - processId: urn:fdc:peppol.eu:2017:poacc:billing:01:1.0 (PEPPOL BIS Billing)
+POST http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0
+Content-Type: application/xml
+
+< sample-invoice.xml
+
+###
+
+### Send with Different Identifier Scheme (DUNS)
+# This example uses Dun & Bradstreet (DUNS) identifier scheme instead of GLN
+POST http://localhost:8080/api/as4/send/0130::123456789/0130::987654321/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0
+Content-Type: application/xml
+
+< sample-invoice.xml
+
+###
+
+### Send Despatch Advice Document
+# This example sends a despatch advice document (shipment notification)
+POST http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2/urn:fdc:peppol.eu:2017:poacc:despatchadvice:01:1.0
+Content-Type: application/xml
+
+< sample-despatch-advice.xml
+
+###
+
+### Send with Different Process ID
+# This example sends an invoice with a different PEPPOL process
+POST http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:03:1.0
+Content-Type: application/xml
+
+< sample-invoice.xml
+
+###
+
+### Send Inline XML (Small Example)
+# This example sends a minimal XML payload inline
+POST http://localhost:8080/api/as4/send/GLN::1111111111111/GLN::2222222222222/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
+  <UBLVersionID>2.3</UBLVersionID>
+  <ID>INV-001</ID>
+  <IssueDate>2026-04-17</IssueDate>
+  <DueDate>2026-05-17</DueDate>
+</Invoice>
+
+###
+
+### Invalid Request - Missing Receiver ID Format
+# This example demonstrates error handling - invalid receiver ID format
+POST http://localhost:8080/api/as4/send/GLN::1234567890123/GLN-9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0
+Content-Type: application/xml
+
+< sample-invoice.xml
+
+###
+
+### Invalid Request - Empty Body
+# This example demonstrates validation error - empty document
+POST http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0
+Content-Type: application/xml
+
+
