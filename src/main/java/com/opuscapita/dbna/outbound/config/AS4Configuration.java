@@ -3,6 +3,7 @@ import com.helger.phase4.crypto.AS4CryptoFactoryProperties;
 import com.helger.phase4.crypto.AS4CryptoProperties;
 import com.helger.phase4.crypto.IAS4CryptoFactory;
 import com.helger.security.keystore.EKeyStoreType;
+import lombok.Getter;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -24,6 +25,7 @@ import java.security.KeyStore;
  * Configuration for AS4 protocol with X.509 certificate support
  */
 @Configuration
+@Getter
 public class AS4Configuration {
     private static final Logger logger = LoggerFactory.getLogger(AS4Configuration.class);
     @Value("${as4.keystore.path:keystore.jks}")
@@ -196,26 +198,6 @@ public class AS4Configuration {
         }
         
         return false;
-    }
-    
-    public String getKeystorePath() {
-        return keystorePath;
-    }
-    
-    public String getKeystorePassword() {
-        return keystorePassword;
-    }
-    
-    public String getKeystoreType() {
-        return keystoreType;
-    }
-    
-    public String getKeyAlias() {
-        return keyAlias;
-    }
-    
-    public String getKeyPassword() {
-        return keyPassword;
     }
     
     public boolean isKeystoreConfigured() {
