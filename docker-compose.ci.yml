@@ -1,0 +1,8 @@
+# Override configuration for CI/Testing
+# Uses locally built image instead of pulling from registry
+
+services:
+  dbna-outbound:
+    build:
+      context: .
+      dockerfile: Dockerfile
