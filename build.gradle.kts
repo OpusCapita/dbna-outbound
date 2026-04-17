@@ -35,6 +35,9 @@ dependencies {
     // Spring Boot Actuator for monitoring and management
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     
+    // Spring Retry for resilience patterns
+    implementation("org.springframework.retry:spring-retry")
+    
     // Spring Cloud Config
     implementation("org.springframework.cloud:spring-cloud-context")
     
@@ -51,11 +54,7 @@ dependencies {
     // XML Processing - using versions compatible with phase4
     implementation("com.helger.commons:ph-commons:11.1.5")
     
-    // DBNA Common - common classes for DBNA outbound integration
-    implementation("com.opuscapita.dbna:dbna-common:1.0.2") {
-        exclude(group = "org.springframework.cloud")
-    }
-    
+
     // Apache Commons Lang3 for utility functions
     implementation("org.apache.commons:commons-lang3:3.18.0")
     
@@ -68,6 +67,9 @@ dependencies {
     // Apache HttpClient 5 - explicitly declared for SSL/TLS support
     implementation("org.apache.httpcomponents.client5:httpclient5")
     
+    // Apache HttpClient 4 - for backward compatibility with dbna-common code
+    implementation("org.apache.httpcomponents:httpclient:4.5.14")
+    
     // JetBrains annotations for @NotNull, @Nullable, etc.
     implementation("org.jetbrains:annotations:24.1.0")
 
@@ -77,6 +79,16 @@ dependencies {
     
     // Logging
     implementation("org.slf4j:slf4j-api:2.0.12")
+    
+    // JSON Processing with Gson
+    implementation("com.google.code.gson:gson:2.11.0")
+    
+    // Peppol support
+    implementation("network.oxalis:oxalis-commons:5.0.5")
+    implementation("network.oxalis.vefa:peppol-sbdh:2.0.2")
+    
+    // Google Guava for utilities (used by SMLLookupService)
+    implementation("com.google.guava:guava:33.0.0-jre")
     
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
