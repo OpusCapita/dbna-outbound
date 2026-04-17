@@ -8,7 +8,10 @@ import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.math.BigInteger;
@@ -26,9 +29,9 @@ public class CertificateUtil {
     private static final Logger logger = LoggerFactory.getLogger(CertificateUtil.class);
 
     /**
-     * Load and validate a keystore
+     * Load and validate a keystore from file path or classpath
      * 
-     * @param keystorePath Path to the keystore file
+     * @param keystorePath Path to the keystore file (can be file path or classpath resource)
      * @param password Keystore password
      * @param type Keystore type (JKS, PKCS12, etc.)
      * @return KeyStore instance if successful, null otherwise
@@ -36,11 +39,45 @@ public class CertificateUtil {
     public static KeyStore loadKeyStore(String keystorePath, String password, String type) {
         try {
             KeyStore keyStore = KeyStore.getInstance(type);
-            try (InputStream is = new FileInputStream(keystorePath)) {
+            InputStream is = null;
+            
+            try {
+                // First, try to load from file system
+                File file = new File(keystorePath);
+                if (file.exists()) {
+                    is = new FileInputStream(file);
+                    logger.debug("Loading keystore from file system: {}", keystorePath);
+                } else {
+                    // Try to load from classpath
+                    Resource resource = new ClassPathResource(keystorePath);
+                    if (resource.exists()) {
+                        is = resource.getInputStream();
+                        logger.debug("Loading keystore from classpath: {}", keystorePath);
+                    } else {
+                        // Try with keystores/ prefix if not already present
+                        if (!keystorePath.startsWith("keystores/")) {
+                            resource = new ClassPathResource("keystores/" + keystorePath);
+                            if (resource.exists()) {
+                                is = resource.getInputStream();
+                                logger.debug("Loading keystore from classpath: keystores/{}", keystorePath);
+                            }
+                        }
+                    }
+                }
+                
+                if (is == null) {
+                    logger.error("Keystore not found at: {}", keystorePath);
+                    return null;
+                }
+                
                 keyStore.load(is, password.toCharArray());
+                logger.info("Successfully loaded keystore from: {}", keystorePath);
+                return keyStore;
+            } finally {
+                if (is != null) {
+                    is.close();
+                }
             }
-            logger.info("Successfully loaded keystore from: {}", keystorePath);
-            return keyStore;
         } catch (Exception e) {
             logger.error("Failed to load keystore from: {}", keystorePath, e);
             return null;

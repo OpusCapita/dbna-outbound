@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dbna-outbound-config
+data:
+  SPRING_APPLICATION_NAME: "dbna-outbound"
+  DBNA_FROM_PARTY_ID: "dbna-outbound"
+  DBNA_FROM_PARTY_ROLE: "http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/initiator"
+  DBNA_TO_PARTY_ROLE: "http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder"
+  DBNA_SERVICE: "http://dbna.opuscapita.com/services"
+  DBNA_ACTION: "http://dbna.opuscapita.com/sendDocument"
+  DBNA_RECEIVER_ENDPOINT_URL: "http://localhost:8080/api/as4"
+  DBNA_RETRY_MAX_ATTEMPTS: "3"
+  DBNA_RETRY_DELAY_MS: "1000"
+  KEYSTORE_TYPE: "JKS"
+  TRUSTSTORE_TYPE: "JKS"
+  SSL_ENABLED: "true"
+  SSL_VERIFY_HOSTNAME: "true"
+  SSL_PROTOCOL: "TLS"
+  STORAGE_BASE_PATH: "/app/storage"
+  logging.level.root: "INFO"
+  logging.level.com.opuscapita: "DEBUG"
+

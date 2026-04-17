@@ -20,7 +20,7 @@ dbna:
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
   action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
   receiver:
-    endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:8080/as4}
+    endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:8080/api/as4}
   retry:
     max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
     delay-ms: ${DBNA_RETRY_DELAY_MS:1000}
@@ -45,6 +45,26 @@ as4:
     enabled: ${SSL_ENABLED:true}
     verify-hostname: ${SSL_VERIFY_HOSTNAME:true}
     protocol: ${SSL_PROTOCOL:TLS}
+
+# Spring Boot Actuator for Kubernetes health probes
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,metrics,prometheus"
+      base-path: "/actuator"
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+  server:
+    port: 8080
 
 # Logging
 logging:

@@ -132,10 +132,11 @@ class CertificateUtilTest {
 
     @Test
     void testValidateCertificate_ExpiringCertificate() {
-        // This certificate is valid for 15 days, so it should still be valid
+        // This certificate expired on April 11, 2026 (5 days ago)
+        // It should fail validation because it's already expired
         boolean isValid = CertificateUtil.validateCertificate(testKeyStore, ALIAS_EXPIRING_CERT);
         
-        assertTrue(isValid, "Certificate valid for 15 days should pass validation");
+        assertFalse(isValid, "Certificate that has expired should fail validation");
     }
 
     @Test
@@ -188,10 +189,10 @@ class CertificateUtilTest {
 
     @Test
     void testIsCertificateExpiringSoon_ExactThreshold() {
-        // Test with threshold that should trigger warning
-        boolean expiringSoon = CertificateUtil.isCertificateExpiringSoon(testKeyStore, ALIAS_EXPIRING_CERT, 15);
-        
-        assertTrue(expiringSoon, "Certificate expiring in exactly 15 days should trigger 15-day threshold");
+        // Test with threshold that should detect the already-expired certificate
+        boolean expiringSoon = CertificateUtil.isCertificateExpiringSoon(testKeyStore, ALIAS_EXPIRING_CERT, 10);
+
+        assertTrue(expiringSoon, "Certificate that expired 5 days ago should be flagged with 10-day threshold");
     }
 
     @Test

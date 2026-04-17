@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: default
+
+resources:
+  - serviceaccount.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+
+commonLabels:
+  app: dbna-outbound
+  managed-by: kustomize
+
+commonAnnotations:
+  deployment-tool: kustomize
+  description: DBNA Outbound Service
+
+replicas:
+  - name: dbna-outbound
+    count: 2
+
+images:
+  - name: dbna-outbound
+    newName: dbna-outbound
+    newTag: latest
+
+vars:
+  - name: NAMESPACE
+    objref:
+      kind: ServiceAccount
+      name: dbna-outbound
+      apiVersion: v1
+    fieldref:
+      fieldpath: metadata.namespace
+

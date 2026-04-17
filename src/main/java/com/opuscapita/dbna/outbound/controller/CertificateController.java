@@ -4,7 +4,6 @@ import com.opuscapita.dbna.outbound.config.AS4Configuration;
 import com.opuscapita.dbna.outbound.util.CertificateUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,14 +15,20 @@ import java.util.Map;
  * REST Controller for certificate management and information
  */
 @RestController
-@RequestMapping("/api/v1/certificates")
+@RequestMapping("/testapi/certificates")
 public class CertificateController {
     
     private static final Logger logger = LoggerFactory.getLogger(CertificateController.class);
     
-    @Autowired
-    private AS4Configuration as4Configuration;
+    private final AS4Configuration as4Configuration;
     
+    /**
+     * Constructor injection for AS4Configuration
+     */
+    public CertificateController(AS4Configuration as4Configuration) {
+        this.as4Configuration = as4Configuration;
+    }
+
     /**
      * Get certificate status and information
      */
@@ -42,10 +47,8 @@ public class CertificateController {
             if (keystoreConfigured) {
                 KeyStore keyStore = CertificateUtil.loadKeyStore(
                     as4Configuration.getKeystorePath(),
-                    System.getenv("KEYSTORE_PASSWORD") != null ? 
-                        System.getenv("KEYSTORE_PASSWORD") : "changeit",
-                    System.getenv("KEYSTORE_TYPE") != null ? 
-                        System.getenv("KEYSTORE_TYPE") : "JKS"
+                    as4Configuration.getKeystorePassword(),
+                    as4Configuration.getKeystoreType()
                 );
                 
                 if (keyStore != null) {

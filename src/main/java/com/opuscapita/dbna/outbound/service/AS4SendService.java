@@ -49,7 +49,7 @@ public class AS4SendService implements SendService {
     private final UBLDocumentService ublDocumentService;
     private final IAS4CryptoFactory as4CryptoFactory;
     private final AS4Configuration as4Configuration;
-    
+
     // DBNA Network Configuration - injected via @Value
     @Value("${dbna.from-party-id:${spring.application.name:dbna-outbound}}")
     private String fromPartyId;
@@ -209,16 +209,22 @@ public class AS4SendService implements SendService {
             // Parse UBL XML to DOM Element
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            Element ublElement = builder.parse(
+            DocumentBuilder xmlBuilder = factory.newDocumentBuilder();
+            Element ublElement = xmlBuilder.parse(
                 new StringInputStream(request.getUblDocumentContent(), StandardCharsets.UTF_8)
             ).getDocumentElement();
-            // Verify certificate configuration for signing
-            if (!as4Configuration.isKeystoreConfigured() && request.isSignMessage()) {
-                logger.warn("Keystore not configured but message signing is requested.");
+            
+            // Verify certificate configuration
+            if (!as4Configuration.isKeystoreConfigured()) {
+                logger.warn("AS4 keystore not configured. Message signing may fail.");
             }
+            
             if (!as4Configuration.isTruststoreConfigured()) {
-                logger.warn("Truststore not configured. Certificate verification may fail.");
+                logger.warn("AS4 truststore not configured. Certificate verification may fail.");
+            }
+            
+            if (request.isSignMessage() && !as4Configuration.isKeystoreConfigured()) {
+                logger.warn("Message signing requested but AS4 keystore not configured.");
             }
             // Prepare AS4 message parameters for DBNA network
             String messageId = MessageHelperMethods.createRandomMessageID();
@@ -232,7 +238,7 @@ public class AS4SendService implements SendService {
             logger.info("Sending AS4 message to DBNA network with X.509 certificate authentication...");
             logger.debug("Message ID: {}, From: {}, To: {}, Service: {}, Action: {}", 
                 messageId, fromParty, toParty, service, action);
-            logger.debug("Using keystore: {}, key alias: {}", 
+            logger.debug("Using AS4 keystore: {}, key alias: {}", 
                 as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
             try {
                 // Create AS4 outgoing attachment from UBL element
@@ -249,7 +255,7 @@ public class AS4SendService implements SendService {
                     .build();
                 
                 // Build and send AS4 User Message for DBNA network using Phase4 builder
-                new AS4Sender.BuilderUserMessage()
+                var builder = new AS4Sender.BuilderUserMessage()
                     .cryptoFactory(as4CryptoFactory)
                     // Message IDs
                     .messageID(messageId)
@@ -268,9 +274,10 @@ public class AS4SendService implements SendService {
                     // Endpoint
                     .endpointURL(request.getReceiverEndpointUrl())
                     // Payload
-                    .addAttachment(attachment)
-                    // Send the message
-                    .sendMessageAndCheckForReceipt();
+                    .addAttachment(attachment);
+                
+                // Send the message with X.509 certificate signing via AS4 keystore
+                builder.sendMessageAndCheckForReceipt();
 
                 logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
                 return responseBuilder

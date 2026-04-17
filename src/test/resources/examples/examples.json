@@ -1,0 +1,203 @@
+{
+  "examples": [
+    {
+      "name": "Health Check",
+      "description": "Check if the AS4 service is running",
+      "method": "GET",
+      "endpoint": "http://localhost:8080/api/as4/health",
+      "response": {
+        "status": 200,
+        "body": "AS4 Outbound Service is running"
+      }
+    },
+    {
+      "name": "Send Invoice - GLN Identifiers",
+      "description": "Send a UBL invoice using GLN (Global Location Number) identifiers",
+      "method": "POST",
+      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "body": "$(file: sample-invoice.xml)",
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "messageId": "MSG-12345@dbna-outbound",
+          "status": "SENT",
+          "timestamp": 1650000000000
+        }
+      }
+    },
+    {
+      "name": "Send Invoice - DUNS Identifiers",
+      "description": "Send a UBL invoice using Dun & Bradstreet (DUNS) identifiers",
+      "method": "POST",
+      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/DUNS::116902221/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "body": "$(file: sample-invoice.xml)",
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "messageId": "MSG-12346@dbna-outbound",
+          "status": "SENT",
+          "timestamp": 1650000000000
+        }
+      }
+    },
+    {
+      "name": "Send Despatch Advice",
+      "description": "Send a despatch advice (shipment notification) document",
+      "method": "POST",
+      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/DUNS::079961550/urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2/urn:fdc:peppol.eu:2017:poacc:despatchadvice:01:1.0",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "body": "$(file: sample-despatch-advice.xml)",
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "messageId": "MSG-12347@dbna-outbound",
+          "status": "SENT",
+          "timestamp": 1650000000000
+        }
+      }
+    },
+    {
+      "name": "Send Credit Note",
+      "description": "Send a credit note document using US:EIN identifier",
+      "method": "POST",
+      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/US:EIN::365060483/urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "body": "XML CreditNote document",
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "messageId": "MSG-12348@dbna-outbound",
+          "status": "SENT",
+          "timestamp": 1650000000000
+        }
+      }
+    },
+    {
+      "name": "Error: Invalid Receiver ID Format",
+      "description": "Demonstrates validation error - receiver ID missing delimiter",
+      "method": "POST",
+      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/GLN-9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "body": "XML invoice document",
+      "response": {
+        "status": 400,
+        "body": {
+          "success": false,
+          "status": "VALIDATION_ERROR",
+          "errorMessage": "Receiver ID must be in format: scheme::identifier",
+          "timestamp": 1650000000000
+        }
+      }
+    },
+    {
+      "name": "Error: Empty Document",
+      "description": "Demonstrates validation error - empty document content",
+      "method": "POST",
+      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/DUNS::079961550/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "body": "",
+      "response": {
+        "status": 400,
+        "body": {
+          "success": false,
+          "status": "VALIDATION_ERROR",
+          "errorMessage": "Document content is required",
+          "timestamp": 1650000000000
+        }
+      }
+    },
+    {
+      "name": "Error: SML Lookup Failed",
+      "description": "Demonstrates error - receiver not found in SML",
+      "method": "POST",
+      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9999999999999/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "body": "XML invoice document",
+      "response": {
+        "status": 404,
+        "body": {
+          "success": false,
+          "status": "SML_LOOKUP_FAILED",
+          "errorMessage": "Receiver not found in SML: GLN::9999999999999",
+          "timestamp": 1650000000000
+        }
+      }
+    },
+    {
+      "name": "Error: SMP Discovery Failed",
+      "description": "Demonstrates error - document type not supported",
+      "method": "POST",
+      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:invalid:document:type/urn:invalid:process/",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "body": "XML document",
+      "response": {
+        "status": 404,
+        "body": {
+          "success": false,
+          "status": "SMP_DISCOVERY_FAILED",
+          "errorMessage": "Service endpoint not found for document type: urn:invalid:document:type, process: urn:invalid:process",
+          "timestamp": 1650000000000
+        }
+      }
+    }
+  ],
+  "identifier_schemes": {
+    "GLN": {
+      "name": "Global Location Number",
+      "code": "0088 or no prefix",
+      "example": "GLN::1234567890123"
+    },
+    "DUNS": {
+      "name": "Dun & Bradstreet",
+      "code": "0130",
+      "example": "0130::123456789"
+    },
+    "SWIFT": {
+      "name": "SWIFT BIC",
+      "code": "0151",
+      "example": "0151::DEUTDEFF"
+    },
+    "ZZZ": {
+      "name": "Other identifier",
+      "code": "0162",
+      "example": "0162::CUSTOM-ID-123"
+    }
+  },
+  "document_types": {
+    "invoice": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
+    "credit_note": "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2",
+    "despatch_advice": "urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2",
+    "receipt_advice": "urn:oasis:names:specification:ubl:schema:xsd:ReceiptAdvice-2",
+    "order": "urn:oasis:names:specification:ubl:schema:xsd:Order-2"
+  },
+  "process_ids": {
+    "billing": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+    "billing_extended": "urn:fdc:peppol.eu:2017:poacc:billing:03:1.0",
+    "despatch_advice": "urn:fdc:peppol.eu:2017:poacc:despatchadvice:01:1.0",
+    "ordering": "urn:fdc:peppol.eu:2017:poacc:ordering:01:1.0",
+    "order_response": "urn:fdc:peppol.eu:2017:poacc:order_response:01:1.0"
+  }
+}
+

@@ -1,6 +1,7 @@
 package com.opuscapita.dbna.outbound.config;
 
 import com.opuscapita.dbna.common.storage.Storage;
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,7 @@ import java.nio.file.Paths;
  * Provides file system based storage implementation
  */
 @Configuration
+@Getter
 public class StorageConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(StorageConfiguration.class);
