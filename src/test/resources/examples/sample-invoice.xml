@@ -38,7 +38,7 @@
             </cac:PartyTaxScheme>
             <cac:PartyLegalEntity>
                 <cbc:RegistrationName>Example Buyer Corporation</cbc:RegistrationName>
-                <cbc:CompanyID schemeID="GLN">9876543210987</cbc:CompanyID>
+                <cbc:CompanyID schemeID="DUNS">079961550</cbc:CompanyID>
             </cac:PartyLegalEntity>
         </cac:Party>
     </cac:BuyerCustomerParty>

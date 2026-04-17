@@ -17,7 +17,7 @@ SEND_ENDPOINT="/api/as4/send"
 
 # Identifiers (Sender, Receiver)
 SENDER_ID="GLN::1234567890123"
-RECEIVER_ID="GLN::9876543210987"
+RECEIVER_ID="DUNS::079961550"
 
 # Document Type Identifier (UBL Invoice)
 DOC_TYPE_ID="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"

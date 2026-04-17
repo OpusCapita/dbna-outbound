@@ -29,7 +29,7 @@ Content-Type: application/xml
 
 ### Send Despatch Advice Document
 # This example sends a despatch advice document (shipment notification)
-POST http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2/urn:fdc:peppol.eu:2017:poacc:despatchadvice:01:1.0
+POST http://localhost:8080/api/as4/send/GLN::1234567890123/DUNS::079961550/urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2/urn:fdc:peppol.eu:2017:poacc:despatchadvice:01:1.0
 Content-Type: application/xml
 
 < sample-despatch-advice.xml

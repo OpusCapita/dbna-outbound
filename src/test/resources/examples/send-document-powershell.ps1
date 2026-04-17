@@ -14,7 +14,7 @@ $SendEndpoint = "/api/as4/send"
 
 # Identifiers
 $SenderId = "GLN::1234567890123"
-$ReceiverId = "GLN::9876543210987"
+$ReceiverId = "DUNS::079961550"
 
 # Document Type (UBL Invoice)
 $DocTypeId = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
