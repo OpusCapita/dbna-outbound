@@ -15,12 +15,15 @@ java {
 repositories {
     mavenLocal()
     mavenCentral()
-    maven {
-        name = "nexus"
-        url = uri(extra["MAVEN_REGISTRY_URL"] as String)
-        credentials {
-            username = extra["MAVEN_REGISTRY_USER"] as String
-            password = extra["MAVEN_REGISTRY_PASS"] as String
+    // Nexus repository - only added if credentials are available (optional for CI/Docker builds)
+    if (extra.has("MAVEN_REGISTRY_URL")) {
+        maven {
+            name = "nexus"
+            url = uri(extra["MAVEN_REGISTRY_URL"] as String)
+            credentials {
+                username = extra["MAVEN_REGISTRY_USER"] as String
+                password = extra["MAVEN_REGISTRY_PASS"] as String
+            }
         }
     }
 }
