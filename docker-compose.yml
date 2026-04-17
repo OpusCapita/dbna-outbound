@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  dbna-outbound:
+    image: opuscapita/dbna-outbound:dev
+    container_name: dbna-outbound-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    volumes:
+      - ./storage:/app/storage
+      - ./config:/app/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - dbna-network
+
+networks:
+  dbna-network:
+    driver: bridge
+
