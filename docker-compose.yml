@@ -5,8 +5,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: opuscapita/dbna-outbound:dev
-    pull_policy: never
     container_name: dbna-outbound
     ports:
       - "8080:8080"
