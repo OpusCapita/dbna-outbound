@@ -11,6 +11,15 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - JAVA_OPTS=-Xmx512m -Xms256m
+      - dbna.from-party-id=dbna-outbound
+      - dbna.from-party-role=http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/initiator
+      - dbna.to-party-role=http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder
+      - dbna.service-type=
+      - dbna.service=http://dbna.opuscapita.com/services
+      - dbna.action=http://dbna.opuscapita.com/sendDocument
+      - dbna.receiver.endpoint-url=http://localhost:8080/as4
+      - dbna.retry.max-attempts=3
+      - dbna.retry.delay-ms=1000
       - as4.keystore.path=keystore.jks
       - as4.keystore.password=changeit
       - as4.keystore.type=JKS
