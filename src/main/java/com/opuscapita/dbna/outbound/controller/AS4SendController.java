@@ -170,12 +170,4 @@ public class AS4SendController {
             throw new AS4TransmissionException("AS4 message transmission failed: " + e.getMessage(), e);
         }
     }
-    
-    /**
-     * Health check endpoint
-     */
-    @GetMapping("/health")
-    public ResponseEntity<String> health() {
-        return ResponseEntity.ok("AS4 Outbound Service is running");
-    }
 }

@@ -488,17 +488,6 @@ class AS4SendControllerTest {
         assertTrue(capturedRequest.isEncryptMessage(), "Message encryption must be enabled");
         assertEquals("https://dbnalliance.org/agreements/access_point.html", capturedRequest.getAgreementRef());
     }
-
-    @Test
-    @DisplayName("Health check endpoint should return OK")
-    void testHealthCheckEndpoint() {
-        // Act
-        ResponseEntity<String> response = controller.health();
-
-        // Assert
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals("AS4 Outbound Service is running", response.getBody());
-    }
 }
 
 
