@@ -11,6 +11,17 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - JAVA_OPTS=-Xmx512m -Xms256m
+      - as4.keystore.path=keystore.jks
+      - as4.keystore.password=changeit
+      - as4.keystore.type=JKS
+      - as4.key.alias=dbna
+      - as4.key.password=changeit
+      - as4.truststore.path=truststore.jks
+      - as4.truststore.password=changeit
+      - as4.truststore.type=JKS
+      - as4.ssl.enabled=true
+      - as4.ssl.verify-hostname=true
+      - as4.ssl.protocol=TLS
     volumes:
       - ./storage:/app/storage
       - ./config:/app/config
