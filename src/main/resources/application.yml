@@ -35,8 +35,8 @@ as4:
     password: ${KEYSTORE_PASSWORD:changeit}
     type: ${KEYSTORE_TYPE:JKS}
   key:
-    alias: ${KEY_ALIAS:dbna}
-    password: ${KEY_PASSWORD:changeit}
+    alias: ${KEYSTORE_KEY_ALIAS:dbna}
+    password: ${KEYSTORE_KEY_PASSWORD:changeit}
   truststore:
     path: ${TRUSTSTORE_PATH:truststore.jks}
     password: ${TRUSTSTORE_PASSWORD:changeit}

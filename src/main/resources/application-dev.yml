@@ -24,8 +24,8 @@ as4:
     password: ${KEYSTORE_PASSWORD:testpassword}
     type: ${KEYSTORE_TYPE:PKCS12}
   key:
-    alias: ${KEY_ALIAS:testcert}
-    password: ${KEY_PASSWORD:testpassword}
+    alias: ${KEYSTORE_KEY_ALIAS:testcert}
+    password: ${KEYSTORE_KEY_PASSWORD:testpassword}
   truststore:
     path: ${TRUSTSTORE_PATH:dev-truststore.jks}
     password: ${TRUSTSTORE_PASSWORD:changeit}

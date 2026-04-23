@@ -24,8 +24,8 @@ as4:
     password: ${KEYSTORE_PASSWORD}
     type: ${KEYSTORE_TYPE:JKS}
   key:
-    alias: ${KEY_ALIAS}
-    password: ${KEY_PASSWORD}
+    alias: ${KEYSTORE_KEY_ALIAS}
+    password: ${KEYSTORE_KEY_PASSWORD}
   truststore:
     path: ${TRUSTSTORE_PATH:/etc/dbna/certs/truststore.jks}
     password: ${TRUSTSTORE_PASSWORD}
