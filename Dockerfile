@@ -32,10 +32,10 @@ USER appuser
 
 # Health check endpoint - use new dedicated health endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8080/api/health/check || exit 1
+    CMD curl -f http://localhost:3310/api/health/check || exit 1
 
 # Expose port
-EXPOSE 8080
+EXPOSE 3310
 
 # Set Java options for Kubernetes environment
 ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseStringDeduplication"

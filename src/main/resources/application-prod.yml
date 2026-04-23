@@ -21,11 +21,11 @@ dbna:
 as4:
   keystore:
     path: ${KEYSTORE_PATH:/etc/dbna/certs/keystore.jks}
-    password: ${KEYSTORE_PASSWORD}
+    password: ${KEYSTORE_PASSWORD:changeit}
     type: ${KEYSTORE_TYPE:JKS}
   key:
-    alias: ${KEYSTORE_KEY_ALIAS}
-    password: ${KEYSTORE_KEY_PASSWORD}
+    alias: ${KEYSTORE_KEY_ALIAS:dbna}
+    password: ${KEYSTORE_KEY_PASSWORD:changeit}
   ssl:
     enabled: true  # SSL required for production
     verify-hostname: true  # Hostname verification enabled for security

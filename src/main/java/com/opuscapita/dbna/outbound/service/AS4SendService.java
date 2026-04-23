@@ -64,7 +64,7 @@ public class AS4SendService implements SendService {
     @Value("${dbna.action:http://dbna.opuscapita.com/sendDocument}")
     private String defaultAction;
     
-    @Value("${dbna.receiver.endpoint-url:http://localhost:8080/as4}")
+    @Value("${dbna.receiver.endpoint-url:http://localhost:3310/as4}")
     private String defaultReceiverEndpointUrl;
     
     @Value("${dbna.retry.max-attempts:3}")
