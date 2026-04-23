@@ -21,7 +21,8 @@ import java.util.List;
  * - Hostname verification
  * - DBNA-specific certificate policy validation
  *
- * Note: Truststore support has been removed. Certificate verification is handled at the protocol level.
+ * Note: Certificate verification is handled at the protocol level through keystore configuration.
+ * No separate truststore is required for certificate validation.
  */
 @Service
 public class CertificateValidationService {
@@ -56,7 +57,7 @@ public class CertificateValidationService {
             }
         }
         
-        // Skip truststore validation - certificates are validated by issuer chain
+        // Certificates are validated by issuer chain at the protocol level
         logger.info("Certificate chain validation successful");
 
         return true;
