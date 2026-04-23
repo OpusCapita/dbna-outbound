@@ -26,10 +26,6 @@ as4:
   key:
     alias: ${KEYSTORE_KEY_ALIAS}
     password: ${KEYSTORE_KEY_PASSWORD}
-  truststore:
-    path: ${TRUSTSTORE_PATH:/etc/dbna/certs/truststore.jks}
-    password: ${TRUSTSTORE_PASSWORD}
-    type: ${TRUSTSTORE_TYPE:JKS}
   ssl:
     enabled: true  # SSL required for production
     verify-hostname: true  # Hostname verification enabled for security

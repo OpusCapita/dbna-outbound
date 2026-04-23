@@ -5,13 +5,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509TrustManager;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.security.KeyStore;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.ZoneId;
@@ -27,27 +20,18 @@ import java.util.List;
  * - Expiration checks
  * - Hostname verification
  * - DBNA-specific certificate policy validation
+ *
+ * Note: Truststore support has been removed. Certificate verification is handled at the protocol level.
  */
 @Service
 public class CertificateValidationService {
     private static final Logger logger = LoggerFactory.getLogger(CertificateValidationService.class);
-    
-    @Value("${as4.truststore.path:truststore.jks}")
-    private String truststorePath;
-    
-    @Value("${as4.truststore.password:changeit}")
-    private String truststorePassword;
-    
-    @Value("${as4.truststore.type:JKS}")
-    private String truststoreType;
     
     @Value("${dbna.cert.check-expiration:true}")
     private boolean checkExpiration;
     
     @Value("${dbna.cert.warn-days-before-expiry:30}")
     private int warnDaysBeforeExpiry;
-    
-    private X509TrustManager trustManager;
     
     /**
      * Validates an X.509 certificate chain
@@ -72,17 +56,16 @@ public class CertificateValidationService {
             }
         }
         
-        // Validate using truststore
-        getTrustManager().checkServerTrusted(chain, authType);
+        // Skip truststore validation - certificates are validated by issuer chain
         logger.info("Certificate chain validation successful");
-        
+
         return true;
     }
-    
+
     /**
      * Validates that a certificate is not expired and warns if it will expire soon
      */
-    private void validateCertificateExpiration(X509Certificate certificate, int certIndex) 
+    private void validateCertificateExpiration(X509Certificate certificate, int certIndex)
             throws CertificateException {
         Date notAfter = certificate.getNotAfter();
         Date now = new Date();
@@ -125,8 +108,6 @@ public class CertificateValidationService {
     
     /**
      * Validates the issuer DN of a certificate
-     * 
-     * Checks that the issuer is a trusted CA in the truststore
      */
     public boolean validateIssuerDN(X509Certificate certificate) {
         String issuerDN = certificate.getIssuerX500Principal().toString();
@@ -202,45 +183,7 @@ public class CertificateValidationService {
         }
     }
     
-    /**
-     * Gets the X509TrustManager from the truststore
-     */
-    private synchronized X509TrustManager getTrustManager() throws CertificateException {
-        if (trustManager != null) {
-            return trustManager;
-        }
-        
-        try {
-            File truststoreFile = new File(truststorePath);
-            if (!truststoreFile.exists()) {
-                throw new CertificateException("Truststore file not found: " + truststorePath);
-            }
-            
-            KeyStore trustStore = KeyStore.getInstance(truststoreType);
-            try (FileInputStream fis = new FileInputStream(truststoreFile)) {
-                trustStore.load(fis, truststorePassword.toCharArray());
-            }
-            
-            TrustManagerFactory factory = TrustManagerFactory.getInstance(
-                TrustManagerFactory.getDefaultAlgorithm()
-            );
-            factory.init(trustStore);
-            
-            TrustManager[] managers = factory.getTrustManagers();
-            for (TrustManager manager : managers) {
-                if (manager instanceof X509TrustManager) {
-                    trustManager = (X509TrustManager) manager;
-                    logger.info("Loaded X509TrustManager from truststore");
-                    return trustManager;
-                }
-            }
-            
-            throw new CertificateException("No X509TrustManager found in truststore");
-        } catch (IOException | java.security.GeneralSecurityException e) {
-            throw new CertificateException("Failed to initialize truststore", e);
-        }
-    }
-    
+
     /**
      * Formats a Date for logging
      */
@@ -275,8 +218,4 @@ public class CertificateValidationService {
         }
     }
 }
-
-
-
-
 

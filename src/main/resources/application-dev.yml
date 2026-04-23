@@ -26,10 +26,6 @@ as4:
   key:
     alias: ${KEYSTORE_KEY_ALIAS:testcert}
     password: ${KEYSTORE_KEY_PASSWORD:testpassword}
-  truststore:
-    path: ${TRUSTSTORE_PATH:dev-truststore.jks}
-    password: ${TRUSTSTORE_PASSWORD:changeit}
-    type: ${TRUSTSTORE_TYPE:JKS}
   ssl:
     enabled: false  # SSL disabled for development
     verify-hostname: false  # Hostname verification disabled for development

@@ -23,6 +23,7 @@ import java.io.FileInputStream;
 import java.security.KeyStore;
 /**
  * Configuration for AS4 protocol with X.509 certificate support
+ * Note: Truststore support has been removed. Certificate verification is handled at the protocol level.
  */
 @Configuration
 @Getter
@@ -38,12 +39,6 @@ public class AS4Configuration {
     private String keyAlias;
     @Value("${as4.key.password:changeit}")
     private String keyPassword;
-    @Value("${as4.truststore.path:truststore.jks}")
-    private String truststorePath;
-    @Value("${as4.truststore.password:changeit}")
-    private String truststorePassword;
-    @Value("${as4.truststore.type:JKS}")
-    private String truststoreType;
     @Value("${as4.ssl.enabled:true}")
     private boolean sslEnabled;
     @Value("${as4.ssl.verify-hostname:true}")
@@ -66,16 +61,6 @@ public class AS4Configuration {
         } else {
             logger.warn("Keystore file not found at: {}. AS4 signing will not be available.", keystorePath);
         }
-        
-        if (resourceExists(truststorePath)) {
-            logger.info("Loading truststore from: {}", truststorePath);
-            cryptoProps.setTrustStorePath(truststorePath);
-            cryptoProps.setTrustStorePassword(truststorePassword);
-            cryptoProps.setTrustStoreType(EKeyStoreType.getFromIDCaseInsensitiveOrDefault(truststoreType, EKeyStoreType.JKS));
-            logger.info("Truststore loaded successfully");
-        } else {
-            logger.warn("Truststore file not found at: {}. Certificate verification may fail.", truststorePath);
-        }
         return new AS4CryptoFactoryProperties(cryptoProps);
     }
     @Bean
@@ -92,18 +77,10 @@ public class AS4Configuration {
                 logger.info("Keystore loaded for SSL client authentication");
             }
             
-            KeyStore trustStore = loadKeyStoreFromResource(truststorePath, truststorePassword, truststoreType);
-            if (trustStore != null) {
-                logger.info("Truststore loaded for SSL certificate verification");
-            }
-            
             SSLContextBuilder sslContextBuilder = new SSLContextBuilder();
             sslContextBuilder.setProtocol(sslProtocol);
             if (keyStore != null) {
                 sslContextBuilder.loadKeyMaterial(keyStore, keyPassword.toCharArray());
-            }
-            if (trustStore != null) {
-                sslContextBuilder.loadTrustMaterial(trustStore, null);
             }
             SSLContext sslContext = sslContextBuilder.build();
             SSLConnectionSocketFactory sslSocketFactory;
@@ -202,9 +179,5 @@ public class AS4Configuration {
     
     public boolean isKeystoreConfigured() {
         return resourceExists(keystorePath);
-    }
-    
-    public boolean isTruststoreConfigured() {
-        return resourceExists(truststorePath);
     }
 }

@@ -219,10 +219,6 @@ public class AS4SendService implements SendService {
                 logger.warn("AS4 keystore not configured. Message signing may fail.");
             }
             
-            if (!as4Configuration.isTruststoreConfigured()) {
-                logger.warn("AS4 truststore not configured. Certificate verification may fail.");
-            }
-            
             if (request.isSignMessage() && !as4Configuration.isKeystoreConfigured()) {
                 logger.warn("Message signing requested but AS4 keystore not configured.");
             }

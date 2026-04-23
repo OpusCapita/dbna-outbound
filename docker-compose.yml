@@ -25,9 +25,6 @@ services:
       - as4.keystore.type=JKS
       - as4.key.alias=dbna
       - as4.key.password=changeit
-      - as4.truststore.path=truststore.jks
-      - as4.truststore.password=changeit
-      - as4.truststore.type=JKS
       - as4.ssl.enabled=true
       - as4.ssl.verify-hostname=true
       - as4.ssl.protocol=TLS
@@ -35,7 +32,7 @@ services:
       - ./storage:/app/storage
       - ./config:/app/config
     healthcheck:
-       test: ["CMD", "curl", "-f", "http://localhost:3310/api/health/check"]
+      test: ["CMD", "curl", "-f", "http://localhost:3310/api/health/check"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -68,9 +68,6 @@ public class CertificateController {
                 }
             }
             
-            // Check truststore
-            status.put("truststoreConfigured", as4Configuration.isTruststoreConfigured());
-            
             return ResponseEntity.ok(status);
             
         } catch (Exception e) {
