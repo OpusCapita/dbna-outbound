@@ -6,7 +6,7 @@ spring:
     name: dbna-outbound
 
 server:
-  port: 8080
+  port: 3310
 
 # DBNA Network Configuration - Development
 dbna:

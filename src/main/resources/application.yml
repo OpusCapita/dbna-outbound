@@ -5,7 +5,7 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}  # Default to dev profile
 
 server:
-  port: 8080
+  port: 3310
 
 # Storage Configuration
 storage:
@@ -20,7 +20,7 @@ dbna:
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
   action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
   receiver:
-    endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:8080/api/as4}
+    endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:3310/api/as4}
   retry:
     max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
     delay-ms: ${DBNA_RETRY_DELAY_MS:1000}
@@ -64,7 +64,7 @@ management:
     readinessState:
       enabled: true
   server:
-    port: 8080
+    port: 3310
 
 # Logging
 logging:

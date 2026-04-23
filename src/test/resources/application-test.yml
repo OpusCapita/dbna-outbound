@@ -16,7 +16,7 @@ dbna:
   service: http://test/service
   action: http://test/action
   receiver:
-    endpoint-url: http://localhost:8080/api/as4-test
+    endpoint-url: http://localhost:3310/api/as4-test
   retry:
     max-attempts: 2
     delay-ms: 100

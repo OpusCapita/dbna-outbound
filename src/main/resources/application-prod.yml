@@ -6,7 +6,7 @@ spring:
     name: dbna-outbound
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:3310}
 
 # DBNA Network Configuration - Production
 dbna:

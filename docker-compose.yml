@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: dbna-outbound
     ports:
-      - "8080:8080"
+      - "3310:3310"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - JAVA_OPTS=-Xmx512m -Xms256m
@@ -17,7 +17,7 @@ services:
       - dbna.service-type=
       - dbna.service=http://dbna.opuscapita.com/services
       - dbna.action=http://dbna.opuscapita.com/sendDocument
-      - dbna.receiver.endpoint-url=http://localhost:8080/as4
+      - dbna.receiver.endpoint-url=http://localhost:3310/as4
       - dbna.retry.max-attempts=3
       - dbna.retry.delay-ms=1000
       - as4.keystore.path=keystore.jks
@@ -35,7 +35,7 @@ services:
       - ./storage:/app/storage
       - ./config:/app/config
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health/check"]
+       test: ["CMD", "curl", "-f", "http://localhost:3310/api/health/check"]
       interval: 30s
       timeout: 10s
       retries: 3
