@@ -91,6 +91,7 @@ pipeline {
                     echo "Building Docker image for ${params.SPRING_PROFILE} profile..."
                     sh '''
                         docker build \
+                            --no-cache \
                             --build-arg SPRING_PROFILE=${SPRING_PROFILES_ACTIVE} \
                             --build-arg BUILD_VERSION=${BUILD_VERSION} \
                             -t ${APP_NAME}:${BUILD_VERSION}-${SPRING_PROFILES_ACTIVE} \
