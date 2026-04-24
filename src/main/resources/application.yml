@@ -1,3 +1,4 @@
+# Truststore configuration removed - keystore only
 spring:
   application:
     name: dbna-outbound
