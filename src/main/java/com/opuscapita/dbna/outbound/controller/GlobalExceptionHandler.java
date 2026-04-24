@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import javax.naming.NamingException;
 
@@ -92,7 +93,25 @@ public class GlobalExceptionHandler {
             .errorMessage("Endpoint not found: " + e.getRequestURL())
             .timestamp(System.currentTimeMillis())
             .build();
-        
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    }
+
+    /**
+     * Handle static resource not found (e.g., favicon.ico, CSS, JS files)
+     * Returns 404 NOT_FOUND instead of 500 INTERNAL_SERVER_ERROR
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<AS4SendResponse> handleNoResourceFound(NoResourceFoundException e) {
+        logger.debug("Static resource not found: {}", e.getMessage());
+
+        AS4SendResponse errorResponse = AS4SendResponse.builder()
+            .success(false)
+            .status("NOT_FOUND")
+            .errorMessage("Static resource not found")
+            .timestamp(System.currentTimeMillis())
+            .build();
+
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
     }
     
