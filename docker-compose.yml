@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   main:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: opuscapita/dbna-outbound:dev
     container_name: dbna-outbound
     ports:
       - "3310:3310"
