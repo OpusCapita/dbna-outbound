@@ -10,7 +10,7 @@ server:
 
 # DBNA Network Configuration - Production
 dbna:
-  from-party-id: ${DBNA_FROM_PARTY_ID}  # Required in production
+  from-party-id: ${DBNA_FROM_PARTY_ID:prod-sender}  # Required in production
   from-party-role: ${DBNA_FROM_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/initiator}
   to-party-role: ${DBNA_TO_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}
   service-type: ${DBNA_SERVICE_TYPE:}
