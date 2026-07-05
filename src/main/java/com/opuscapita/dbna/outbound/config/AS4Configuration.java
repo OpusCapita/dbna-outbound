@@ -80,7 +80,10 @@ public class AS4Configuration {
             SSLContextBuilder sslContextBuilder = new SSLContextBuilder();
             sslContextBuilder.setProtocol(sslProtocol);
             if (keyStore != null) {
-                sslContextBuilder.loadKeyMaterial(keyStore, keyPassword.toCharArray());
+                // Try to load key material with the configured key password
+                if (!loadKeyMaterialWithPasswordFallback(sslContextBuilder, keyStore)) {
+                    logger.warn("Could not load key material with any available password. Proceeding without client certificate.");
+                }
             }
             SSLContext sslContext = sslContextBuilder.build();
             SSLConnectionSocketFactory sslSocketFactory;
@@ -104,13 +107,43 @@ public class AS4Configuration {
         }
     }
     
+     /**
+      * Try to load key material with multiple password attempts.
+      * For PKCS12 keystores, the keystore password and key password are often the same.
+      */
+     private boolean loadKeyMaterialWithPasswordFallback(SSLContextBuilder sslContextBuilder, KeyStore keyStore) {
+         // Try with configured key password first
+         try {
+             sslContextBuilder.loadKeyMaterial(keyStore, keyPassword.toCharArray());
+             logger.debug("Successfully loaded key material with configured key password");
+             return true;
+         } catch (java.security.UnrecoverableKeyException e) {
+             logger.debug("Failed to load key material with configured key password, trying keystore password");
+
+             // For PKCS12, try with keystore password (they are often the same)
+             try {
+                 sslContextBuilder.loadKeyMaterial(keyStore, keystorePassword.toCharArray());
+                 logger.info("Successfully loaded key material using keystore password as key password");
+                 return true;
+             } catch (Exception ex) {
+                 logger.warn("Failed to load key material with both key password and keystore password", ex);
+                 return false;
+             }
+         } catch (Exception e) {
+             logger.warn("Error loading key material: {}", e.getMessage(), e);
+             return false;
+         }
+     }
+
     /**
      * Load a keystore from file system or classpath
      */
     private KeyStore loadKeyStoreFromResource(String path, String password, String type) {
         try {
-            KeyStore keyStore = KeyStore.getInstance(type);
-            
+            // Normalize keystore type: P12 is not a valid Java KeyStore type, use PKCS12
+            String normalizedType = "P12".equalsIgnoreCase(type) ? "PKCS12" : type;
+            KeyStore keyStore = KeyStore.getInstance(normalizedType);
+
             // Try file system first
             File file = new File(path);
             if (file.exists()) {
