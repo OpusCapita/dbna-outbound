@@ -270,12 +270,14 @@ public class AS4SendService implements SendService {
             }
             
             // Validate UBL document
-            if (!ublDocumentService.validateUBLDocument(request.getUblDocumentContent())) {
-                logger.warn("Invalid UBL 2.3 document format");
+            try {
+                ublDocumentService.validateUBLDocument(request.getUblDocumentContent());
+            } catch (Exception e) {
+                logger.warn("Invalid UBL 2.3 document format: {}", e.getMessage());
                 return responseBuilder
                     .success(false)
                     .status("VALIDATION_FAILED")
-                    .errorMessage("Invalid UBL 2.3 document format")
+                    .errorMessage("Invalid UBL 2.3 document format: " + e.getMessage())
                     .build();
             }
             // Parse UBL XML to DOM Element

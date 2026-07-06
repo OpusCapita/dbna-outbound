@@ -10,6 +10,7 @@ import com.opuscapita.dbna.outbound.service.AS4SendService;
 import com.opuscapita.dbna.outbound.service.CertificateValidationService;
 import com.opuscapita.dbna.outbound.service.SMLLookupService;
 import com.opuscapita.dbna.outbound.service.SMPService;
+import com.opuscapita.dbna.outbound.service.UBLDocumentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,7 +42,8 @@ public class AS4SendController {
     private final SMLLookupService smlLookupService;
     private final SMPService smpService;
     private final CertificateValidationService certificateValidationService;
-    
+    private final UBLDocumentService ublDocumentService;
+
     /**
      * Constructor injection for all dependencies
      * Ensures all required services are available and promotes immutability
@@ -50,11 +52,13 @@ public class AS4SendController {
             AS4SendService as4SendService,
             SMLLookupService smlLookupService,
             SMPService smpService,
-            CertificateValidationService certificateValidationService) {
+            CertificateValidationService certificateValidationService,
+            UBLDocumentService ublDocumentService) {
         this.as4SendService = as4SendService;
         this.smlLookupService = smlLookupService;
         this.smpService = smpService;
         this.certificateValidationService = certificateValidationService;
+        this.ublDocumentService = ublDocumentService;
     }
     
     /**
@@ -82,12 +86,14 @@ public class AS4SendController {
             @RequestBody String documentContent) {
         logger.info("Received request to send UBL document via DBNA network - SenderId: {}, ReceiverId: {}, DocTypeId: {}, ProcessId: {}", 
             senderId, receiverId, docTypeId, processId);
-
-        // Step 1: Validate document content
+        
+        // Step 1: Validate document is valid UBL 2.3 XML
+        logger.info("Step 1: Validating document is valid UBL 2.3 XML");
         if (documentContent == null || documentContent.trim().isEmpty()) {
             throw new DocumentValidationException("Document content is required");
         }
-        
+        ublDocumentService.validateUBLDocument(documentContent);
+
         // Step 2: Parse and validate receiver identifier
         String[] receiverParts = receiverId.split("::");
         if (receiverParts.length != 2) {
@@ -97,8 +103,8 @@ public class AS4SendController {
         String receiverScheme = receiverParts[0];
         String receiverIdentifier = receiverParts[1];
         
-        // Step 3: Query SML to discover receiver's SMP endpoint
-        logger.info("Step 1: Querying SML for receiver's SMP endpoint - Scheme: {}, Identifier: {}", 
+        // Step 2: Query SML to discover receiver's SMP endpoint
+        logger.info("Step 2: Querying SML for receiver's SMP endpoint - Scheme: {}, Identifier: {}",
             receiverScheme, receiverIdentifier);
         String smpEndpoint;
         // Override SMP endpoint if configured via property
@@ -125,8 +131,8 @@ public class AS4SendController {
             }
         }
         
-        // Step 4: Query SMP to discover service endpoint
-        logger.info("Step 2: Querying SMP for service endpoint - DocTypeId: {}, ProcessId: {}", 
+        // Step 3: Query SMP to discover service endpoint
+        logger.info("Step 3: Querying SMP for service endpoint - DocTypeId: {}, ProcessId: {}",
             docTypeId, processId);
         String receiverEndpointUrl;
 
@@ -155,12 +161,12 @@ public class AS4SendController {
             }
         }
         
-        // Step 5: Validate receiver's certificate
-        logger.info("Step 3: Validating receiver's X.509 certificate from SMP endpoint");
+        // Step 4: Validate receiver's certificate
+        logger.info("Step 4: Validating receiver's X.509 certificate from SMP endpoint");
         logger.debug("Certificate validation configuration: checkExpiration={}", certificateValidationService);
         
-        // Step 6: Build AS4SendRequest with DBNA PMode parameters
-        logger.info("Step 4: Preparing AS4 message with DBNA PMode parameters");
+        // Step 5: Build AS4SendRequest with DBNA PMode parameters
+        logger.info("Step 5: Preparing AS4 message with DBNA PMode parameters");
         AS4SendRequest request = AS4SendRequest.builder()
                 .senderId(senderId)
                 .receiverId(receiverId)
@@ -173,8 +179,8 @@ public class AS4SendController {
                 .agreementRef("https://dbnalliance.org/agreements/access_point.html")  // PMode.Agreement
                 .build();
         
-        // Step 7: Send document via AS4
-        logger.info("Step 5: Sending UBL document via AS4 protocol to DBNA network");
+        // Step 6: Send document via AS4
+        logger.info("Step 6: Sending UBL document via AS4 protocol to DBNA network");
         try {
             AS4SendResponse response = as4SendService.sendAS4Message(request);
             
