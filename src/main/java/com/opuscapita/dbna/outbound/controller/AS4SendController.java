@@ -98,28 +98,28 @@ public class AS4SendController {
         logger.info("Step 1: Querying SML for receiver's SMP endpoint - Scheme: {}, Identifier: {}", 
             receiverScheme, receiverIdentifier);
         String smpEndpoint;
-        try {
-            smpEndpoint = smlLookupService.lookupSMPEndpoint(receiverScheme, receiverIdentifier);
-            if (smpEndpoint == null) {
-                throw new SMLLookupException(
-                    String.format("Receiver '%s::%s' not found in SML registry", receiverScheme, receiverIdentifier));
+        // Override SMP endpoint if configured via property
+        if (smpEndpointOverride != null && !smpEndpointOverride.trim().isEmpty()) {
+            smpEndpoint = smpEndpointOverride;
+            logger.warn("SMP endpoint override via property: {}", smpEndpoint);
+        } else {
+            try {
+                smpEndpoint = smlLookupService.lookupSMPEndpoint(receiverScheme, receiverIdentifier);
+                if (smpEndpoint == null) {
+                    throw new SMLLookupException(
+                            String.format("Receiver '%s::%s' not found in SML registry", receiverScheme, receiverIdentifier));
+                }
+                logger.info("SML lookup successful - SMP endpoint: {}", smpEndpoint);
+            } catch (SMLLookupException | DocumentValidationException e) {
+                throw e;
+            } catch (IllegalArgumentException e) {
+                throw new DocumentValidationException(e.getMessage());
+            } catch (Exception e) {
+                if (e instanceof SMLLookupException || e instanceof DocumentValidationException) {
+                    throw (RuntimeException) e;
+                }
+                throw new SMLLookupException("Failed to query SML for receiver endpoint: " + e.getMessage(), e);
             }
-            logger.info("SML lookup successful - SMP endpoint: {}", smpEndpoint);
-
-            // Override SMP endpoint if configured via property
-            if (smpEndpointOverride != null && !smpEndpointOverride.trim().isEmpty()) {
-                smpEndpoint = smpEndpointOverride;
-                logger.warn("SMP endpoint override via property: {}", smpEndpoint);
-            }
-        } catch (SMLLookupException | DocumentValidationException e) {
-            throw e;
-        } catch (IllegalArgumentException e) {
-            throw new DocumentValidationException(e.getMessage());
-        } catch (Exception e) {
-            if (e instanceof SMLLookupException || e instanceof DocumentValidationException) {
-                throw (RuntimeException) e;
-            }
-            throw new SMLLookupException("Failed to query SML for receiver endpoint: " + e.getMessage(), e);
         }
         
         // Step 4: Query SMP to discover service endpoint
