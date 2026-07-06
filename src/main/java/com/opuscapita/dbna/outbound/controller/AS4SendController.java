@@ -34,6 +34,9 @@ public class AS4SendController {
     @Value("${dbna.smp.url:}")
     private String smpEndpointOverride;
 
+    @Value("${dbna.receiver.url:}")
+    private String receiverEndpointOverride;
+
     private final AS4SendService as4SendService;
     private final SMLLookupService smlLookupService;
     private final SMPService smpService;
@@ -126,23 +129,30 @@ public class AS4SendController {
         logger.info("Step 2: Querying SMP for service endpoint - DocTypeId: {}, ProcessId: {}", 
             docTypeId, processId);
         String receiverEndpointUrl;
-        try {
-            receiverEndpointUrl = smpService.discoverServiceEndpoint(
-                smpEndpoint, 
-                receiverId, 
-                docTypeId, 
-                processId
-            );
-            if (receiverEndpointUrl == null) {
-                throw new SMPDiscoveryException(
-                    String.format("Service endpoint not found for document type: %s, process: %s", 
-                        docTypeId, processId));
+
+        // Check if receiver endpoint override is configured
+        if (receiverEndpointOverride != null && !receiverEndpointOverride.trim().isEmpty()) {
+            receiverEndpointUrl = receiverEndpointOverride;
+            logger.info("Using configured receiver endpoint override: {}", receiverEndpointUrl);
+        } else {
+            try {
+                receiverEndpointUrl = smpService.discoverServiceEndpoint(
+                    smpEndpoint,
+                    receiverId,
+                    docTypeId,
+                    processId
+                );
+                if (receiverEndpointUrl == null) {
+                    throw new SMPDiscoveryException(
+                        String.format("Service endpoint not found for document type: %s, process: %s",
+                            docTypeId, processId));
+                }
+                logger.info("SMP discovery successful - Receiver endpoint: {}", receiverEndpointUrl);
+            } catch (SMPDiscoveryException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new SMPDiscoveryException("Failed to discover service endpoint: " + e.getMessage(), e);
             }
-            logger.info("SMP discovery successful - Receiver endpoint: {}", receiverEndpointUrl);
-        } catch (SMPDiscoveryException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new SMPDiscoveryException("Failed to discover service endpoint: " + e.getMessage(), e);
         }
         
         // Step 5: Validate receiver's certificate
