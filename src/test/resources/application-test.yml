@@ -14,7 +14,6 @@ dbna:
   to-party-role: http://test/responder
   service-type: ""
   service: http://test/service
-  action: http://test/action
   receiver:
     endpoint-url: http://localhost:3310/api/as4-test
   retry:
@@ -57,4 +56,7 @@ logging:
   level:
     com.opuscapita.dbna: DEBUG
     org.springframework: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 

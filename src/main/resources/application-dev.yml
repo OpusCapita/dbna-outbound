@@ -15,7 +15,11 @@ dbna:
   to-party-role: ${DBNA_TO_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}
   service-type: ${DBNA_SERVICE_TYPE:}
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
-  action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
+  sml:
+    url: ${DBNA_SML_URL:sml.dbnalliance.com}
+    dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
+  smp:
+    endpoint: ${DBNA_SMP_ENDPOINT:https://smp.dbnalliance.com/bdxr-smp-2}
 
 # AS4 Configuration - Development Mode (Using test-keystore.p12 from classpath)
 as4:

@@ -19,12 +19,16 @@ dbna:
   to-party-role: ${DBNA_TO_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}
   service-type: ${DBNA_SERVICE_TYPE:}
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
-  action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
   receiver:
     endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:3310/api/as4}
   retry:
     max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
     delay-ms: ${DBNA_RETRY_DELAY_MS:1000}
+  sml:
+    url: ${DBNA_SML_URL:sml.dbnalliance.net}
+    dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
+  smp:
+    endpoint: ${DBNA_SMP_ENDPOINT:}
 
 # AS4 Configuration with X.509 Certificate Support
 # Note: Profile-specific configurations override these defaults
@@ -66,10 +70,10 @@ management:
 # Logging
 logging:
   level:
-    com.opuscapita.dbna: INFO
+    com.opuscapita.dbna: DEBUG
     com.helger.phase4: INFO
     org.springframework.web: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
