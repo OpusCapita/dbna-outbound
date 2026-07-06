@@ -31,7 +31,7 @@ public class AS4SendController {
     
     private static final Logger logger = LoggerFactory.getLogger(AS4SendController.class);
     
-    @Value("${dbna.smp.endpoint:}")
+    @Value("${dbna.smp.url:}")
     private String smpEndpointOverride;
 
     private final AS4SendService as4SendService;

@@ -59,7 +59,7 @@ public class AS4SendService implements SendService {
     @Value("${dbna.to-party-role:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}")
     private String toPartyRole;
 
-    @Value("${dbna.receiver.endpoint-url:http://localhost:3310/as4}")
+    @Value("${dbna.receiver.url:http://localhost:3310/as4}")
     private String defaultReceiverEndpointUrl;
     
     @Value("${dbna.retry.max-attempts:3}")

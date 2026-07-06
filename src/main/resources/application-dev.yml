@@ -19,7 +19,7 @@ dbna:
     url: ${DBNA_SML_URL:sml.dbnalliance.com}
     dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
   smp:
-    endpoint: ${DBNA_SMP_ENDPOINT:https://smp.dbnalliance.com/bdxr-smp-2}
+    url: ${DBNA_SMP_URL:https://smp.dbnalliance.com/bdxr-smp-2}
 
 # AS4 Configuration - Development Mode (Using test-keystore.p12 from classpath)
 as4:

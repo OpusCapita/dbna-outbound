@@ -20,7 +20,7 @@ dbna:
   service-type: ${DBNA_SERVICE_TYPE:}
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
   receiver:
-    endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:3310/api/as4}
+    url: ${DBNA_RECEIVER_URL:http://localhost:3310/api/as4}
   retry:
     max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
     delay-ms: ${DBNA_RETRY_DELAY_MS:1000}
@@ -28,7 +28,7 @@ dbna:
     url: ${DBNA_SML_URL:sml.dbnalliance.net}
     dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
   smp:
-    endpoint: ${DBNA_SMP_ENDPOINT:}
+    url: ${DBNA_SMP_URL:}
 
 # AS4 Configuration with X.509 Certificate Support
 # Note: Profile-specific configurations override these defaults
