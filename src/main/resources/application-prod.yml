@@ -16,12 +16,12 @@ dbna:
   service-type: ${DBNA_SERVICE_TYPE:}
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
   receiver:
-    url: ${DBNA_RECEIVER_URL:https://dbna-inbound.dev.messagesnetwork.com/api/as4/messages}
+    url: ${DBNA_RECEIVER_URL:https://localhost:3210/messages}  # Ensure this points to the correct AS4 endpoint
   sml:
     url: ${DBNA_SML_URL:sml.dbnalliance.com}
     dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
   smp:
-    url: ${DBNA_SMP_URL:https://smp.dbnalliance.com/bdxr-smp-2/}
+    url: ${DBNA_SMP_URL:}
 
 # AS4 Configuration - Production Mode (Certificates Required)
 as4:

@@ -53,14 +53,31 @@ public class AS4Configuration {
         logger.info("Initializing AS4 crypto factory with X.509 certificate support");
         AS4CryptoProperties cryptoProps = new AS4CryptoProperties();
         
-        if (resourceExists(keystorePath)) {
+        // Resolve keystore path to absolute path so Phase4's WSS4J can find it
+        String resolvedKeystorePath = resolveKeystorePath(keystorePath);
+
+        if (resolvedKeystorePath != null && resourceExists(keystorePath)) {
             logger.info("Loading keystore from: {}", keystorePath);
-            cryptoProps.setKeyStorePath(keystorePath);
+            logger.debug("Resolved keystore path: {}", resolvedKeystorePath);
+            // Pass the absolute path so WSS4J can load it
+            cryptoProps.setKeyStorePath(resolvedKeystorePath);
             cryptoProps.setKeyStorePassword(keystorePassword);
-            cryptoProps.setKeyStoreType(EKeyStoreType.getFromIDCaseInsensitiveOrDefault(keystoreType, EKeyStoreType.JKS));
+
+            // Auto-detect keystore type based on actual file extension (resolved path)
+            // This handles cases where default config says .jks but actual file is .p12
+            String detectedType = keystoreType;
+            if (resolvedKeystorePath.toLowerCase().endsWith(".p12") || resolvedKeystorePath.toLowerCase().endsWith(".pfx")) {
+                logger.debug("Detected PKCS12 keystore file format from resolved path, overriding configured type '{}' with PKCS12", keystoreType);
+                detectedType = "PKCS12";
+            }
+
+            cryptoProps.setKeyStoreType(EKeyStoreType.getFromIDCaseInsensitiveOrDefault(detectedType, EKeyStoreType.JKS));
             cryptoProps.setKeyAlias(keyAlias);
             cryptoProps.setKeyPassword(keyPassword);
-            logger.info("Keystore loaded successfully with alias: {}", keyAlias);
+            logger.info("Keystore loaded successfully with alias: {} using type: {}", keyAlias, detectedType);
+
+            // Validate keystore contents for troubleshooting
+            validateKeystoreContents(resolvedKeystorePath, detectedType);
         } else {
             logger.warn("Keystore file not found at: {}. AS4 signing will not be available.", keystorePath);
         }
@@ -138,13 +155,106 @@ public class AS4Configuration {
          }
      }
 
+
+    /**
+     * Validate keystore contents and log diagnostic information
+     * This helps troubleshoot "No certificates for user" errors from WSS4J
+     */
+    private void validateKeystoreContents(String keystorePath, String keystoreType) {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(keystoreType);
+            try (FileInputStream fis = new FileInputStream(keystorePath)) {
+                keyStore.load(fis, keystorePassword.toCharArray());
+            }
+
+            java.util.Enumeration<String> aliases = keyStore.aliases();
+            boolean foundKeyAlias = false;
+            StringBuilder aliasInfo = new StringBuilder("Keystore contents:\n");
+
+            while (aliases.hasMoreElements()) {
+                String alias = aliases.nextElement();
+                boolean isKeyEntry = keyStore.isKeyEntry(alias);
+                boolean isCertEntry = keyStore.isCertificateEntry(alias);
+                aliasInfo.append("  - ").append(alias);
+
+                if (isKeyEntry) {
+                    aliasInfo.append(" (PRIVATE KEY ENTRY)");
+                    if (alias.equals(keyAlias)) {
+                        foundKeyAlias = true;
+                    }
+                } else if (isCertEntry) {
+                    aliasInfo.append(" (CERTIFICATE ENTRY)");
+                } else {
+                    aliasInfo.append(" (OTHER)");
+                }
+                aliasInfo.append("\n");
+            }
+
+            logger.debug(aliasInfo.toString());
+
+            if (!foundKeyAlias) {
+                logger.warn("CRITICAL: Keystore does not contain a private key entry with alias '{}'. " +
+                    "This will cause 'No certificates for user' error during signing.", keyAlias);
+            } else {
+                logger.debug("Successfully verified that keystore contains private key entry for alias '{}'", keyAlias);
+            }
+        } catch (Exception e) {
+            logger.warn("Could not validate keystore contents (this is not critical): {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Resolve keystore path to absolute file path for Phase4's WSS4J
+     * Tries filesystem first, then classpath resources
+     */
+    private String resolveKeystorePath(String path) {
+        try {
+            // Try direct file system path
+            File file = new File(path);
+            if (file.exists() && file.isFile()) {
+                logger.debug("Found keystore at filesystem path: {}", file.getAbsolutePath());
+                return file.getAbsolutePath();
+            }
+
+            // Try classpath root
+            Resource resource = new ClassPathResource(path);
+            if (resource.exists()) {
+                String absolutePath = resource.getFile().getAbsolutePath();
+                logger.debug("Found keystore at classpath path: {}", absolutePath);
+                return absolutePath;
+            }
+
+            // Try keystores/ classpath subdirectory
+            if (!path.startsWith("keystores/")) {
+                resource = new ClassPathResource("keystores/" + path);
+                if (resource.exists()) {
+                    String absolutePath = resource.getFile().getAbsolutePath();
+                    logger.debug("Found keystore at classpath/keystores path: {}", absolutePath);
+                    return absolutePath;
+                }
+            }
+
+            logger.warn("Could not resolve keystore path: {}", path);
+            return null;
+        } catch (Exception e) {
+            logger.error("Error resolving keystore path: {}", path, e);
+            return null;
+        }
+    }
+
     /**
      * Load a keystore from file system or classpath
      */
     private KeyStore loadKeyStoreFromResource(String path, String password, String type) {
         try {
-            // Normalize keystore type: P12 is not a valid Java KeyStore type, use PKCS12
-            String normalizedType = "P12".equalsIgnoreCase(type) ? "PKCS12" : type;
+            // Normalize keystore type based on file extension
+            String normalizedType = type;
+            if (path.toLowerCase().endsWith(".p12") || path.toLowerCase().endsWith(".pfx")) {
+                normalizedType = "PKCS12";
+            } else if ("P12".equalsIgnoreCase(type)) {
+                // Also handle explicit P12 type configuration
+                normalizedType = "PKCS12";
+            }
             KeyStore keyStore = KeyStore.getInstance(normalizedType);
 
             // Try file system first
