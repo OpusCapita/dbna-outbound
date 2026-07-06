@@ -5,6 +5,7 @@ import com.helger.phase4.crypto.IAS4CryptoFactory;
 import com.helger.phase4.messaging.domain.MessageHelperMethods;
 import com.helger.phase4.sender.AS4Sender;
 import com.helger.phase4.attachment.AS4OutgoingAttachment;
+import com.helger.scope.mgr.ScopeManager;
 import com.opuscapita.dbna.outbound.config.AS4Configuration;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
@@ -241,39 +242,58 @@ public class AS4SendService implements SendService {
             logger.debug("Using AS4 keystore: {}, key alias: {}",
                 as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
             try {
-                // Create AS4 outgoing attachment from UBL element
-                // Serialize Element to byte array for attachment
-                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                javax.xml.transform.TransformerFactory.newInstance().newTransformer()
-                    .transform(new javax.xml.transform.dom.DOMSource(ublElement), 
-                              new javax.xml.transform.stream.StreamResult(baos));
-                
-                AS4OutgoingAttachment attachment = AS4OutgoingAttachment.builder()
-                    .data(baos.toByteArray())
-                    .mimeType(CMimeType.APPLICATION_XML)
-                    .charset(StandardCharsets.UTF_8)
-                    .build();
-                
-                // Build and send AS4 User Message for DBNA network using Phase4 builder
-                // Ensure global scope is set before creating the builder
-                // This is required by Phase4's MetaAS4Manager singleton
-                var builder = ensureScopeAndCreateBuilder(
-                    messageId, conversationId, fromParty, toParty, request, as4CryptoFactory
-                );
+                // Ensure global scope is active for Phase4 operations
+                // Phase4 requires the scope to be active in the current thread
+                boolean scopeWasAlreadyActive = ScopeManager.getGlobalScopeOrNull() != null;
+                if (!scopeWasAlreadyActive) {
+                    logger.debug("Activating Phase4 global scope for AS4 message sending");
+                    ScopeManager.onGlobalBegin("AS4-Send-Operation");
+                }
 
-                // Add the attachment to the builder
-                builder.addAttachment(attachment);
+                try {
+                    // Create AS4 outgoing attachment from UBL element
+                    // Serialize Element to byte array for attachment
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    javax.xml.transform.TransformerFactory.newInstance().newTransformer()
+                        .transform(new javax.xml.transform.dom.DOMSource(ublElement),
+                                  new javax.xml.transform.stream.StreamResult(baos));
 
-                // Send the message with X.509 certificate signing via AS4 keystore
-                builder.sendMessageAndCheckForReceipt();
+                    AS4OutgoingAttachment attachment = AS4OutgoingAttachment.builder()
+                        .data(baos.toByteArray())
+                        .mimeType(CMimeType.APPLICATION_XML)
+                        .charset(StandardCharsets.UTF_8)
+                        .build();
 
-                logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
-                return responseBuilder
-                    .success(true)
-                    .messageId(messageId)
-                    .status("SENT")
-                    .build();
-                    
+                    // Build and send AS4 User Message for DBNA network using Phase4 builder
+                    // Ensure global scope is set before creating the builder
+                    // This is required by Phase4's MetaAS4Manager singleton
+                    var builder = ensureScopeAndCreateBuilder(
+                        messageId, conversationId, fromParty, toParty, request, as4CryptoFactory
+                    );
+
+                    // Add the attachment to the builder
+                    builder.addAttachment(attachment);
+
+                    // Send the message with X.509 certificate signing via AS4 keystore
+                    builder.sendMessageAndCheckForReceipt();
+
+                    logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
+                    return responseBuilder
+                        .success(true)
+                        .messageId(messageId)
+                        .status("SENT")
+                        .build();
+                } finally {
+                    // Only end scope if we created it
+                    if (!scopeWasAlreadyActive) {
+                        try {
+                            ScopeManager.onGlobalEnd();
+                        } catch (Exception e) {
+                            logger.debug("Error ending global scope", e);
+                        }
+                    }
+                }
+
             } catch (Exception sendEx) {
                 logger.error("Failed to send AS4 message to DBNA network. This may be due to certificate issues.", sendEx);
                 String errorMsg = sendEx.getMessage();

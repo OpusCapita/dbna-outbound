@@ -3,6 +3,7 @@ import com.helger.phase4.crypto.AS4CryptoFactoryProperties;
 import com.helger.phase4.crypto.AS4CryptoProperties;
 import com.helger.phase4.crypto.IAS4CryptoFactory;
 import com.helger.security.keystore.EKeyStoreType;
+import com.helger.scope.mgr.ScopeManager;
 import lombok.Getter;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
@@ -13,8 +14,10 @@ import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.event.EventListener;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import javax.net.ssl.SSLContext;
@@ -212,5 +215,32 @@ public class AS4Configuration {
     
     public boolean isKeystoreConfigured() {
         return resourceExists(keystorePath);
+    }
+
+    /**
+     * Initialize Phase4 global scope on application startup.
+     * This is required by Phase4's MetaAS4Manager which expects a global scope to be available.
+     * The global scope is a thread-local scope that Phase4 uses for accessing configuration and state.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void initializePhase4GlobalScope() {
+        try {
+            // Always initialize global scope for Phase4
+            // If it's already initialized, this will be a no-op
+            logger.info("Initializing Phase4 global scope for MetaAS4Manager");
+            ScopeManager.onGlobalBegin("Phase4-Global");
+            logger.info("Phase4 global scope initialized successfully");
+        } catch (IllegalStateException e) {
+            // Global scope might already be active - this is expected on subsequent calls
+            if (e.getMessage() != null && e.getMessage().contains("already been begin")) {
+                logger.debug("Phase4 global scope is already active");
+            } else {
+                logger.error("Failed to initialize Phase4 global scope. AS4 messaging may fail.", e);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to initialize Phase4 global scope. AS4 messaging may fail.", e);
+            // Don't throw exception as it might cause application startup failure
+            // The error will be visible in logs and caught when AS4 operations are attempted
+        }
     }
 }
