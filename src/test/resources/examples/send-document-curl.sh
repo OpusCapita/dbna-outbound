@@ -6,24 +6,24 @@
 #
 # Requirements:
 #   - curl command line tool
-#   - Service running on http://localhost:8080
+#   - Service running on http://localhost:3310
 #   - UBL XML document (sample-invoice.xml)
 
 set -e
 
 # Configuration
-SERVICE_URL="http://localhost:8080"
+SERVICE_URL="http://localhost:3310"
 SEND_ENDPOINT="/api/as4/send"
 
 # Identifiers (Sender, Receiver)
 SENDER_ID="GLN::1234567890123"
-RECEIVER_ID="DUNS::079961550"
+RECEIVER_ID="FI:OVT::003728468254"
 
 # Document Type Identifier (UBL Invoice)
-DOC_TYPE_ID="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+DOC_TYPE_ID="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##DBNAlliance-1.0-data-Core"
 
-# Process Identifier (PEPPOL BIS Billing)
-PROCESS_ID="urn:fdc:peppol.eu:2017:poacc:billing:01:1.0"
+# Process Identifier (no process)
+PROCESS_ID="bdx:noprocess"
 
 # XML document file
 XML_FILE="sample-invoice.xml"
@@ -48,8 +48,13 @@ if [ ! -f "$XML_FILE" ]; then
     exit 1
 fi
 
+# URL-encode special characters in path variables
+# In bash, we use printf with %q but for URLs we need proper encoding
+# Convert # to %23 for URL encoding
+DOC_TYPE_ID_ENCODED="${DOC_TYPE_ID//\#/%23}"
+
 # Construct full URL
-FULL_URL="$SERVICE_URL$SEND_ENDPOINT/$SENDER_ID/$RECEIVER_ID/$DOC_TYPE_ID/$PROCESS_ID"
+FULL_URL="$SERVICE_URL$SEND_ENDPOINT/$SENDER_ID/$RECEIVER_ID/$DOC_TYPE_ID_ENCODED/$PROCESS_ID"
 
 echo "Sending request to: $FULL_URL"
 echo ""

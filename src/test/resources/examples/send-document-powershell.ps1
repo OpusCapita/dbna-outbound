@@ -25,8 +25,23 @@ $ProcessId = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0"
 # XML file path
 $XmlFile = "sample-invoice.xml"
 
-# Build full URL
-$FullUrl = "$ServiceUrl$SendEndpoint/$SenderId/$ReceiverId/$DocTypeId/$ProcessId"
+# Helper function to URL-encode special characters in path segments
+function Encode-UrlPathSegment {
+    param([string]$Segment)
+
+    # URL encode special characters that might cause issues in URL paths
+    $encoded = [System.Uri]::EscapeDataString($Segment)
+    return $encoded
+}
+
+# URL-encode path variables (in case they contain special characters like #)
+$SenderId_Encoded = Encode-UrlPathSegment $SenderId
+$ReceiverId_Encoded = Encode-UrlPathSegment $ReceiverId
+$DocTypeId_Encoded = Encode-UrlPathSegment $DocTypeId
+$ProcessId_Encoded = Encode-UrlPathSegment $ProcessId
+
+# Build full URL with encoded path segments
+$FullUrl = "$ServiceUrl$SendEndpoint/$SenderId_Encoded/$ReceiverId_Encoded/$DocTypeId_Encoded/$ProcessId_Encoded"
 
 Write-Host "=========================================="
 Write-Host "AS4SendController - Send Document Example"
