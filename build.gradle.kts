@@ -54,6 +54,10 @@ dependencies {
     implementation("com.helger.ubl:ph-ubl23:8.0.2")
     implementation("com.helger.ubl:ph-ubl23-codelists:8.0.2")
     
+    // Jakarta XML Binding - required for UBL document processing
+    implementation("jakarta.xml.bind:jakarta.xml.bind-api:4.0.2")
+    implementation("org.glassfish.jaxb:jaxb-runtime:4.0.5")
+    
     // XML Processing - using versions compatible with phase4
     implementation("com.helger.commons:ph-commons:11.1.5")
     
