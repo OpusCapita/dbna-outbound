@@ -50,6 +50,8 @@ public class AS4SendService implements SendService {
     private final UBLDocumentService ublDocumentService;
     private final IAS4CryptoFactory as4CryptoFactory;
     private final AS4Configuration as4Configuration;
+    private final SMLLookupService smlLookupService;
+    private final SMPService smpService;
 
     // DBNA Network Configuration - injected via @Value
     @Value("${dbna.from-party-id:${spring.application.name:dbna-outbound}}")
@@ -59,9 +61,15 @@ public class AS4SendService implements SendService {
     @Value("${dbna.to-party-role:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}")
     private String toPartyRole;
 
-    @Value("${dbna.receiver.url:http://localhost:3310/as4}")
-    private String defaultReceiverEndpointUrl;
-    
+    @Value("${dbna.receiver.url:}")
+    private String receiverEndpointOverride;
+
+    @Value("${dbna.sml.url:}")
+    private String smlUrl;
+
+    @Value("${dbna.smp.url:}")
+    private String smpUrl;
+
     @Value("${dbna.retry.max-attempts:3}")
     private int maxRetryAttempts;
 
@@ -76,11 +84,15 @@ public class AS4SendService implements SendService {
             Storage storage,
             UBLDocumentService ublDocumentService,
             IAS4CryptoFactory as4CryptoFactory,
-            AS4Configuration as4Configuration) {
+            AS4Configuration as4Configuration,
+            SMLLookupService smlLookupService,
+            SMPService smpService) {
         this.storage = storage;
         this.ublDocumentService = ublDocumentService;
         this.as4CryptoFactory = as4CryptoFactory;
         this.as4Configuration = as4Configuration;
+        this.smlLookupService = smlLookupService;
+        this.smpService = smpService;
     }
     
     /**
@@ -107,10 +119,17 @@ public class AS4SendService implements SendService {
             ublContent = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
         }
         
+        // Determine receiver endpoint URL
+        String receiverEndpointUrl = resolveReceiverEndpointUrl(
+            cm.getMetadata().getRecipientId(),
+            cm.getMetadata().getDocumentTypeIdentifier(),
+            cm.getMetadata().getProfileTypeIdentifier()
+        );
+
         // Extract metadata from ContainerMessage to build AS4SendRequest
         AS4SendRequest request = AS4SendRequest.builder()
             .ublDocumentContent(ublContent)
-            .receiverEndpointUrl(defaultReceiverEndpointUrl)  // Use configured default endpoint
+            .receiverEndpointUrl(receiverEndpointUrl)
             .senderId(cm.getMetadata().getSenderId())
             .receiverId(cm.getMetadata().getRecipientId())
             .conversationId(cm.getMetadata().getMessageId())
@@ -140,6 +159,54 @@ public class AS4SendService implements SendService {
         return response;
     }
     
+    /**
+     * Resolves the receiver endpoint URL by checking override first, then querying SMP if needed
+     *
+     * @param receiverId Receiver party identifier (scheme::id)
+     * @param documentTypeId Document type identifier
+     * @param processId Business process identifier
+     * @return The receiver endpoint URL
+     * @throws Exception if endpoint resolution fails
+     */
+    private String resolveReceiverEndpointUrl(String receiverId, String documentTypeId, String processId) throws Exception {
+        // Step 1: If override is set, use it
+        if (isValidString(receiverEndpointOverride)) {
+            logger.info("Using configured receiver endpoint override: {}", receiverEndpointOverride);
+            return receiverEndpointOverride;
+        }
+
+        logger.info("No receiver endpoint override configured, querying SMP for endpoint");
+
+        // Step 2: Get SMP endpoint
+        String activeSmpUrl = smpUrl;
+        if (!isValidString(activeSmpUrl)) {
+            // If SMP URL not configured, try to get it from SML
+            logger.info("No SMP URL configured, attempting to resolve from SML");
+            String[] receiverParts = receiverId.split("::");
+            if (receiverParts.length != 2) {
+                throw new IllegalArgumentException("Receiver ID must be in format: scheme::identifier");
+            }
+            activeSmpUrl = smlLookupService.lookupSMPEndpoint(receiverParts[0], receiverParts[1]);
+            if (!isValidString(activeSmpUrl)) {
+                throw new IllegalStateException("Failed to resolve SMP endpoint from SML");
+            }
+            logger.info("Resolved SMP endpoint from SML: {}", activeSmpUrl);
+        }
+
+        // Step 3: Query SMP for the receiver endpoint URL
+        logger.info("Querying SMP for receiver endpoint - DocumentType: {}, ProcessId: {}", documentTypeId, processId);
+        String receiverEndpointUrl = smpService.discoverServiceEndpoint(activeSmpUrl, receiverId, documentTypeId, processId);
+
+        if (!isValidString(receiverEndpointUrl)) {
+            throw new IllegalStateException(
+                String.format("Failed to discover receiver endpoint from SMP for documentType: %s, process: %s",
+                    documentTypeId, processId));
+        }
+
+        logger.info("Successfully resolved receiver endpoint from SMP: {}", receiverEndpointUrl);
+        return receiverEndpointUrl;
+    }
+
     /**
      * Core AS4 sending logic - shared by both send() and sendDocument()
      * Wrapped with proper scope management for Phase4
