@@ -45,10 +45,12 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-context")
     
     // AS4 Support - Phase4 library configured for DBNA network
-    // The phase4-lib provides AS4 messaging capabilities that can be configured
-    // for DBNA Alliance network communication (no separate DBNA client needed)
-    // Note: phase4-lib brings in Apache HttpClient 5 transitively
-    implementation("com.helger.phase4:phase4-lib:2.5.0")
+    // Updated to compatible version that works with phase4-profile-dbnalliance
+    implementation("com.helger.phase4:phase4-lib:2.9.3")
+
+    // DBNA Profile for Phase4 - provides DBNA-specific PMode definitions and configurations
+    // This includes the DBNA PMode with proper security and retry parameters
+    implementation("com.helger.phase4:phase4-profile-dbnalliance:2.9.3")
 
     // UBL 2.3 Support
     implementation("com.helger.ubl:ph-ubl23:8.0.2")

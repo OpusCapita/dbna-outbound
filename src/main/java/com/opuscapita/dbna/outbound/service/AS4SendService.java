@@ -29,26 +29,26 @@ import java.time.Instant;
 /**
  * Service for sending UBL 2.3 documents via AS4 protocol to DBNA network with X.509 certificate support
  * 
- * This service uses the Phase4 library (com.helger.phase4:phase4-lib) which provides generic AS4 messaging
- * capabilities. According to the DBNA AS4 Profile v1.0, DBNA uses the OASIS BDXR AS4 profile:
+ * This service uses the Phase4 library with the DBNA Profile module:
+ * - phase4-lib:2.5.0 - Core AS4 messaging implementation
+ * - phase4-profile-dbnalliance:2.9.3 - DBNA-specific PMode definitions (auto-discovered by Phase4)
+ *
+ * According to DBNA AS4 Profile v1.0, DBNA uses the OASIS BDXR AS4 profile:
  * https://docs.oasis-open.org/bdxr/bdx-as4/v1.0/cs01/bdx-as4-v1.0-cs01.html
  *
- * PMode Configuration:
+ * DBNA PMode Configuration (from phase4-profile-dbnalliance auto-discovery):
  * - PMode ID: "bdxr-as4-1.0" (standard OASIS BDXR OneWay)
  * - Agreement: "https://dbnalliance.org/agreements/access_point.html"
- * - Service: "urn:oasis:names:tc:ebxml-msg:service"
- * - Action: "Send"
+ * - Security: X.509 with AES-256-GCM encryption (mandatory for DBNA)
+ * - Retry: Enabled with 5+ attempts over 6 hours minimum
+ * - Duplicate Detection: 30 days
+ * - Error Handling: Missing receipts notify producer
  *
- * CRITICAL: Phase4 requires the PMode to be registered in MetaAS4Manager. If Phase4 returns
- * INVALID_PARAMETERS with "The field 'PMode' is not set", it means the PMode is not registered.
- *
- * PMode Registration Options:
- * 1. Use phase4-profile-bdxr module (when available for v2.5.0)
- * 2. Load PMode from XML file in Phase4 configuration directory
- * 3. Upgrade Phase4 to a version that includes the BDXR profile module
- *
- * The service correctly uses .pmodeID("bdxr-as4-1.0") and validates the result.
- * If INVALID_PARAMETERS is returned, you need to implement one of the PMode registration options above.
+ * The service:
+ * 1. Phase4 automatically discovers and registers the DBNA profile when phase4-profile-dbnalliance is on classpath
+ * 2. CreateAS4Builder sets .pmodeID("bdxr-as4-1.0") to use the registered DBNA PMode
+ * 3. sendMessageAndCheckForReceipt() validates the message and returns ESimpleUserMessageSendResult
+ * 4. Result is checked: SUCCESS = message sent, any other value = failure with detailed error
  */
 @Service
 public class AS4SendService implements SendService {
@@ -500,25 +500,20 @@ public class AS4SendService implements SendService {
     /**
      * Create the AS4 builder with all the required parameters from the request.
      *
-     * NOTE ON PMODE: This sets .pmodeID("bdxr-as4-1.0") which requires the PMode to be
-     * registered in Phase4's MetaAS4Manager. If Phase4 returns INVALID_PARAMETERS with
-     * "The field 'PMode' is not set", it means the PMode is not found.
-     *
-     * To fix: Register the BDXR PMode by either:
-     * 1. Adding phase4-profile-bdxr dependency when available
-     * 2. Creating a PMode XML file in Phase4's configuration directory
-     * 3. Upgrading to a Phase4 version that includes the BDXR profile
+     * The .pmodeID("bdxr-as4-1.0") references the DBNA PMode that is automatically
+     * registered by Phase4 when phase4-profile-dbnalliance is on the classpath.
      */
     private AS4Sender.BuilderUserMessage createAS4Builder(
             String messageId, String conversationId, String fromParty, String toParty,
             AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
 
-        // ...existing code...
+        // Build the base builder with all required AS4 parameters
+        // Phase4's BuilderUserMessage requires several mandatory fields to create a valid AS4 message
         var builder = new AS4Sender.BuilderUserMessage()
             .cryptoFactory(as4CryptoFactory)
             // PMode ID - CRITICAL: Phase4 requires a PMode to be set
-            // Using BDXR PMode ID "bdxr-as4-1.0" from the registered BDXR profile
-            // This PMode is registered by DBNAPModeConfiguration via BDXRProfileRegistration.register()
+            // Using BDXR PMode ID "bdxr-as4-1.0" registered by phase4-profile-dbnalliance
+            // This PMode is automatically discovered by Phase4 at runtime
             .pmodeID(com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId())
             // ...existing code...
             // Message IDs - Required
