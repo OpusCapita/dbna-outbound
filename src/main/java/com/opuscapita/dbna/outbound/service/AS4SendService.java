@@ -36,7 +36,16 @@ import java.time.Instant;
  * - DBNA service and action endpoints
  * - X.509 certificate-based authentication
  * - UBL 2.3 document support
- * 
+ *
+ * CRITICAL: Phase4's sendMessageAndCheckForReceipt() returns an enum result indicating success or failure.
+ * The AS4SendService therefore:
+ * 1. Captures the result value (an enum constant)
+ * 2. Checks if it represents SUCCESS
+ * 3. Returns success only if the result is SUCCESS, otherwise returns the failure status
+ *
+ * This prevents the contradictory logging issue where Phase4 logs "mandatory field not set" errors
+ * but the application logs success because no exception was thrown.
+ *
  * Note: There is no separate "phase4-dbnalliance-client" artifact. The phase4-lib provides the necessary
  * AS4 messaging functionality, and DBNA-specific configuration is applied through the AS4Sender builder
  * pattern with DBNA network parameters.
@@ -344,14 +353,69 @@ public class AS4SendService implements SendService {
                     builder.addAttachment(attachment);
 
                     // Send the message with X.509 certificate signing via AS4 keystore
-                    builder.sendMessageAndCheckForReceipt();
+                    // Important: Phase4 may log warnings about missing PMode but still attempt to send
+                    logger.info("Initiating AS4 message send via Phase4");
+                    logger.debug("Builder configuration: service=urn:oasis:names:tc:ebxml-msg:service, " +
+                        "action=Send, from={}, to={}, endpoint={}",
+                        fromParty, toParty, request.getReceiverEndpointUrl());
 
-                    logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
-                    return responseBuilder
-                        .success(true)
-                        .messageId(messageId)
-                        .status("SENT")
-                        .build();
+                    // Call sendMessageAndCheckForReceipt and capture the result
+                    // This returns an enum indicating success or failure of the send operation
+                    Object sendResult = null;
+                    try {
+                        logger.debug("Calling Phase4 sendMessageAndCheckForReceipt()...");
+                        sendResult = builder.sendMessageAndCheckForReceipt();
+                        logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} (type: {})",
+                            sendResult, sendResult != null ? sendResult.getClass().getSimpleName() : "null");
+                    } catch (Exception e) {
+                        logger.error("Phase4 sendMessageAndCheckForReceipt() threw an exception", e);
+
+                        // Check if the exception indicates a configuration issue
+                        String exMsg = e.getMessage();
+                        if (exMsg != null && (exMsg.contains("mandatory field") || exMsg.contains("PMode"))) {
+                            logger.error("CRITICAL: AS4 message send failed due to missing fields or configuration issues: {}", exMsg);
+                            return responseBuilder
+                                .success(false)
+                                .status("FAILED")
+                                .errorMessage("AS4 send failed: " + exMsg)
+                                .build();
+                        }
+                        // For other exceptions, re-throw to be caught by outer handler
+                        throw e;
+                    }
+
+                    // Validate the send result
+                    // The result is an enum - SUCCESS means the send succeeded, any other value means failure
+                    if (sendResult == null) {
+                        logger.error("CRITICAL: AS4 sendMessageAndCheckForReceipt() returned null. " +
+                            "This indicates the message was likely NOT sent.");
+                        return responseBuilder
+                            .success(false)
+                            .status("FAILED")
+                            .errorMessage("AS4 send failed: sendMessageAndCheckForReceipt() returned null")
+                            .build();
+                    }
+
+                    // Check if the result indicates success
+                    // The enum constant for success is typically named SUCCESS
+                    String resultName = sendResult.toString();
+                    if (resultName.contains("SUCCESS") || resultName.equals("SUCCESS")) {
+                        logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
+                        return responseBuilder
+                            .success(true)
+                            .messageId(messageId)
+                            .status("SENT")
+                            .build();
+                    } else {
+                        // Send failed - result indicates an error condition
+                        logger.error("CRITICAL: AS4 sendMessageAndCheckForReceipt() returned failure status: {}", resultName);
+                        String errorMsg = String.format("AS4 send failed with status: %s", resultName);
+                        return responseBuilder
+                            .success(false)
+                            .status("FAILED")
+                            .errorMessage(errorMsg)
+                            .build();
+                    }
                 } finally {
                     // Only end scope if we created it
                     if (!scopeWasAlreadyActive) {
@@ -364,11 +428,21 @@ public class AS4SendService implements SendService {
                 }
 
             } catch (Exception sendEx) {
-                logger.error("Failed to send AS4 message to DBNA network. This may be due to certificate issues.", sendEx);
+                logger.error("Failed to send AS4 message to DBNA network. " +
+                    "This may be due to configuration issues (missing PMode, no profile module, certificate issues, or incomplete AS4 builder configuration).",
+                    sendEx);
+
                 String errorMsg = sendEx.getMessage();
-                if (errorMsg != null && (errorMsg.contains("certificate") || errorMsg.contains("SSL") || errorMsg.contains("TLS"))) {
-                    errorMsg = "Certificate/SSL error: " + errorMsg;
+                if (errorMsg != null) {
+                    if (errorMsg.contains("certificate") || errorMsg.contains("SSL") || errorMsg.contains("TLS")) {
+                        errorMsg = "Certificate/SSL error: " + errorMsg;
+                    } else if (errorMsg.contains("PMode") || errorMsg.contains("pmode")) {
+                        errorMsg = "PMode configuration error: " + errorMsg + ". The AS4 message builder may be missing required fields.";
+                    } else if (errorMsg.contains("mandatory field") || errorMsg.contains("not set")) {
+                        errorMsg = "AS4 message builder incomplete: " + errorMsg + ". This typically means the PMode or a required field is missing.";
+                    }
                 }
+
                 return responseBuilder
                     .success(false)
                     .status("FAILED")
@@ -430,24 +504,30 @@ public class AS4SendService implements SendService {
             String messageId, String conversationId, String fromParty, String toParty,
             AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
 
-        return new AS4Sender.BuilderUserMessage()
+        // Build the base builder with all required AS4 parameters
+        // Phase4's BuilderUserMessage requires several mandatory fields to create a valid AS4 message
+        var builder = new AS4Sender.BuilderUserMessage()
             .cryptoFactory(as4CryptoFactory)
-            // Message IDs
+            // Message IDs - Required
             .messageID(messageId)
             .conversationID(conversationId)
-            // Sender Party
+            // Sender Party - Required
             .fromPartyID(fromParty)
             .fromRole(fromPartyRole)
-            // Receiver Party
+            // Receiver Party - Required
             .toPartyID(toParty)
             .toRole(toPartyRole)
-            // Agreement if provided
+            // Service - Required for AS4 user message (standard OASIS ebMS service)
+            .service("urn:oasis:names:tc:ebxml-msg:service")
+            // Action - Required for AS4 user message (standard send action)
+            .action("Send")
+            // Agreement reference if provided
             .agreementRef(request.getAgreementRef())
-            // Endpoint from request
-            .endpointURL(request.getReceiverEndpointUrl())
-            // Payload - note: attachment was created in the calling method
-            // We'll need to add it in the calling method
-            ;
+            // Endpoint URL - Required (where to send the message)
+            .endpointURL(request.getReceiverEndpointUrl());
+
+        // Payload - will be added by the caller (in sendAS4MessageInternal)
+        return builder;
     }
 
     /**
