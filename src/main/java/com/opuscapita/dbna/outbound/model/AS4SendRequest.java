@@ -21,9 +21,8 @@ public class AS4SendRequest {
     private String documentType;
     private String processId;
     private String ublDocumentContent;
-    private String action;
     private String service;
-    
+
     // Optional fields
     private String agreementRef;
     private boolean signMessage;

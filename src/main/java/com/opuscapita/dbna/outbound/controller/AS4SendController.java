@@ -101,6 +101,10 @@ public class AS4SendController {
                     String.format("Receiver '%s::%s' not found in SML registry", receiverScheme, receiverIdentifier));
             }
             logger.info("SML lookup successful - SMP endpoint: {}", smpEndpoint);
+
+            // FIXME Override SMP endpoint temporarily, due to SML misconfiguration
+            smpEndpoint = "https://smp.dbnalliance.com/bdxr-smp-2/";
+            logger.warn("SMP endpoint override: {}", smpEndpoint);
         } catch (SMLLookupException | DocumentValidationException e) {
             throw e;
         } catch (IllegalArgumentException e) {

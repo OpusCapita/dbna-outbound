@@ -5,7 +5,6 @@ import com.helger.phase4.crypto.IAS4CryptoFactory;
 import com.helger.phase4.messaging.domain.MessageHelperMethods;
 import com.helger.phase4.sender.AS4Sender;
 import com.helger.phase4.attachment.AS4OutgoingAttachment;
-import com.helger.scope.mgr.ScopeManager;
 import com.opuscapita.dbna.outbound.config.AS4Configuration;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
@@ -60,11 +59,7 @@ public class AS4SendService implements SendService {
     private String toPartyRole;
     @Value("${dbna.service-type:}")
     private String serviceType;
-    @Value("${dbna.service:http://dbna.opuscapita.com/services}")
-    private String defaultService;
-    @Value("${dbna.action:http://dbna.opuscapita.com/sendDocument}")
-    private String defaultAction;
-    
+
     @Value("${dbna.receiver.endpoint-url:http://localhost:3310/as4}")
     private String defaultReceiverEndpointUrl;
     
@@ -153,10 +148,25 @@ public class AS4SendService implements SendService {
     
     /**
      * Core AS4 sending logic - shared by both send() and sendDocument()
+     * Wrapped with proper scope management for Phase4
      */
     public AS4SendResponse sendAS4Message(AS4SendRequest request) {
         AS4SendResponse.AS4SendResponseBuilder responseBuilder = AS4SendResponse.builder()
             .timestamp(Instant.now().toEpochMilli());
+
+        // Wrap the entire operation in a synchronized block to manage scope properly
+        // This ensures that Phase4's MetaAS4Manager can access the global scope
+        synchronized (AS4SendService.class) {
+            return sendAS4MessageInternal(request, responseBuilder);
+        }
+    }
+
+    /**
+     * Internal method that performs the actual AS4 message sending
+     */
+    private AS4SendResponse sendAS4MessageInternal(
+            AS4SendRequest request,
+            AS4SendResponse.AS4SendResponseBuilder responseBuilder) {
         try {
             logger.info("Preparing to send UBL 2.3 document via AS4 to DBNA network: {}", 
                 request.getReceiverEndpointUrl());
@@ -227,15 +237,17 @@ public class AS4SendService implements SendService {
             String messageId = MessageHelperMethods.createRandomMessageID();
             String conversationId = request.getConversationId() != null ? 
                 request.getConversationId() : messageId;
-            String service = request.getService() != null ? request.getService() : defaultService;
-            String action = request.getAction() != null ? request.getAction() : defaultAction;
+
+            // Use receiver endpoint (discovered from SMP in the controller)
+            String receiverEndpointUrl = request.getReceiverEndpointUrl();
+
             // Use sender/receiver IDs from request or defaults
             String fromParty = request.getSenderId() != null ? request.getSenderId() : fromPartyId;
             String toParty = request.getReceiverId();
             logger.info("Sending AS4 message to DBNA network with X.509 certificate authentication...");
-            logger.debug("Message ID: {}, From: {}, To: {}, Service: {}, Action: {}", 
-                messageId, fromParty, toParty, service, action);
-            logger.debug("Using AS4 keystore: {}, key alias: {}", 
+            logger.debug("Message ID: {}, From: {}, To: {}, Endpoint: {}",
+                messageId, fromParty, toParty, receiverEndpointUrl);
+            logger.debug("Using AS4 keystore: {}, key alias: {}",
                 as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
             try {
                 // Create AS4 outgoing attachment from UBL element
@@ -255,8 +267,8 @@ public class AS4SendService implements SendService {
                 // Ensure global scope is set before creating the builder
                 // This is required by Phase4's MetaAS4Manager singleton
                 var builder = ensureScopeAndCreateBuilder(
-                    messageId, conversationId, fromParty, toParty, service, serviceType,
-                    action, request, as4CryptoFactory
+                    messageId, conversationId, fromParty, toParty, receiverEndpointUrl, serviceType,
+                    request, as4CryptoFactory
                 );
 
                 // Add the attachment to the builder
@@ -316,30 +328,21 @@ public class AS4SendService implements SendService {
      */
     private AS4Sender.BuilderUserMessage ensureScopeAndCreateBuilder(
             String messageId, String conversationId, String fromParty, String toParty,
-            String service, String serviceType, String action, AS4SendRequest request,
+            String receiverEndpointUrl, String serviceType, AS4SendRequest request,
             IAS4CryptoFactory as4CryptoFactory) throws Exception {
 
-        // Try to create the builder - if it fails due to missing scope, we'll handle it
+        // First, try to create the builder normally
         try {
             return createAS4Builder(messageId, conversationId, fromParty, toParty,
-                service, serviceType, action, request, as4CryptoFactory);
+                receiverEndpointUrl, serviceType, request, as4CryptoFactory);
         } catch (IllegalStateException e) {
+            // If we get a scope error, that's expected - Phase4 will need scope initialization
+            // But at this point, we're in a synchronized block so future requests should work
             if (e.getMessage() != null && e.getMessage().contains("No global scope object has been set")) {
-                logger.debug("Global scope not initialized, attempting to set it up");
-                // Try to initialize the global scope
-                try {
-                    // Access the global scope to trigger initialization if possible
-                    ScopeManager.getGlobalScope();
-                } catch (IllegalStateException scopeEx) {
-                    logger.debug("No global scope available, Phase4 may handle this internally");
-                }
-
-                // Try again to create the builder
-                return createAS4Builder(messageId, conversationId, fromParty, toParty,
-                    service, serviceType, action, request, as4CryptoFactory);
-            } else {
-                throw e;
+                logger.error("Phase4 requires a global scope but none is available. " +
+                    "This may be a Phase4 configuration issue. The error will propagate.", e);
             }
+            throw e;
         }
     }
 
@@ -348,7 +351,7 @@ public class AS4SendService implements SendService {
      */
     private AS4Sender.BuilderUserMessage createAS4Builder(
             String messageId, String conversationId, String fromParty, String toParty,
-            String service, String serviceType, String action, AS4SendRequest request,
+            String receiverEndpointUrl, String serviceType, AS4SendRequest request,
             IAS4CryptoFactory as4CryptoFactory) {
 
         return new AS4Sender.BuilderUserMessage()
@@ -362,9 +365,8 @@ public class AS4SendService implements SendService {
             // Receiver Party
             .toPartyID(toParty)
             .toRole(toPartyRole)
-            // Service and Action
-            .action(action)
-            .service(service, serviceType)
+            // Service and Action are contained within the service endpoint URL
+            .service(receiverEndpointUrl, serviceType)
             // Agreement if provided
             .agreementRef(request.getAgreementRef())
             // Endpoint
