@@ -7,37 +7,38 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
 
 /**
- * Configuration for Phase4 AS4 messaging support.
+ * Configuration for DBNA AS4 messaging with OASIS BDXR profile.
  *
- * DBNA (Digital Business Networks Alliance) uses AS4 messaging for document exchange.
- * This configuration class serves as a marker for Phase4 AS4 initialization.
- * The actual AS4 message configuration happens in AS4SendService at send time.
+ * According to DBNA AS4 Profile v1.0, DBNA uses the OASIS BDXR AS4 profile:
+ * https://docs.oasis-open.org/bdxr/bdx-as4/v1.0/cs01/bdx-as4-v1.0-cs01.html
+ *
+ * This configuration provides the BDXR OneWay PMode ID "bdxr-as4-1.0" which is passed
+ * to the AS4Sender builder. Phase4 will look up this PMode in its configured profile.
+ *
+ * For full BDXR compliance without the phase4-profile-bdxr module, a PMode XML file
+ * needs to be created and registered with Phase4's configuration.
  */
 @Configuration
 public class DBNAPModeConfiguration {
     private static final Logger logger = LoggerFactory.getLogger(DBNAPModeConfiguration.class);
 
-    private static final String DBNA_PMODE_ID = "DBNA-AS4";
+    private static final String BDXR_PMODE_ID = "bdxr-as4-1.0";
 
     /**
-     * Initialize Phase4 support on application startup.
+     * Log DBNA AS4 messaging initialization on application startup.
      */
     @EventListener(ApplicationReadyEvent.class)
-    public void initializePhase4() {
-        try {
-            logger.info("Phase4 AS4 messaging support ready for DBNA document transmission");
-        } catch (Exception e) {
-            logger.warn("Phase4 initialization check: {}", e.getMessage());
-        }
+    public void logDBNAInitialization() {
+        logger.info("DBNA AS4 messaging configured with BDXR PMode ID: {}", BDXR_PMODE_ID);
+        logger.info("Reference: OASIS BDXR AS4 v1.0 - https://docs.oasis-open.org/bdxr/bdx-as4/v1.0/");
     }
 
     /**
-     * Get the DBNA PMode ID for use by AS4Sender builder.
-     * Note: This PMode ID is used by the builder but may not be registered in MetaAS4Manager
-     * if profile modules are not available. The builder will use the ID reference anyway.
+     * Get the BDXR PMode ID to be used by AS4Sender builder.
+     * This is the standard OASIS BDXR OneWay PMode ID.
      */
     public static String getDBNAPModeId() {
-        return DBNA_PMODE_ID;
+        return BDXR_PMODE_ID;
     }
 }
 

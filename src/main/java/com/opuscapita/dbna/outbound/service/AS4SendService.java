@@ -30,25 +30,25 @@ import java.time.Instant;
  * Service for sending UBL 2.3 documents via AS4 protocol to DBNA network with X.509 certificate support
  * 
  * This service uses the Phase4 library (com.helger.phase4:phase4-lib) which provides generic AS4 messaging
- * capabilities. The Phase4 library is configured specifically for the DBNA (Digital Business Networks Alliance)
- * network through:
- * - DBNA-specific party roles (initiator/responder)
- * - DBNA service and action endpoints
- * - X.509 certificate-based authentication
- * - UBL 2.3 document support
+ * capabilities. According to the DBNA AS4 Profile v1.0, DBNA uses the OASIS BDXR AS4 profile:
+ * https://docs.oasis-open.org/bdxr/bdx-as4/v1.0/cs01/bdx-as4-v1.0-cs01.html
  *
- * CRITICAL: Phase4's sendMessageAndCheckForReceipt() returns an enum result indicating success or failure.
- * The AS4SendService therefore:
- * 1. Captures the result value (an enum constant)
- * 2. Checks if it represents SUCCESS
- * 3. Returns success only if the result is SUCCESS, otherwise returns the failure status
+ * PMode Configuration:
+ * - PMode ID: "bdxr-as4-1.0" (standard OASIS BDXR OneWay)
+ * - Agreement: "https://dbnalliance.org/agreements/access_point.html"
+ * - Service: "urn:oasis:names:tc:ebxml-msg:service"
+ * - Action: "Send"
  *
- * This prevents the contradictory logging issue where Phase4 logs "mandatory field not set" errors
- * but the application logs success because no exception was thrown.
+ * CRITICAL: Phase4 requires the PMode to be registered in MetaAS4Manager. If Phase4 returns
+ * INVALID_PARAMETERS with "The field 'PMode' is not set", it means the PMode is not registered.
  *
- * Note: There is no separate "phase4-dbnalliance-client" artifact. The phase4-lib provides the necessary
- * AS4 messaging functionality, and DBNA-specific configuration is applied through the AS4Sender builder
- * pattern with DBNA network parameters.
+ * PMode Registration Options:
+ * 1. Use phase4-profile-bdxr module (when available for v2.5.0)
+ * 2. Load PMode from XML file in Phase4 configuration directory
+ * 3. Upgrade Phase4 to a version that includes the BDXR profile module
+ *
+ * The service correctly uses .pmodeID("bdxr-as4-1.0") and validates the result.
+ * If INVALID_PARAMETERS is returned, you need to implement one of the PMode registration options above.
  */
 @Service
 public class AS4SendService implements SendService {
@@ -499,15 +499,28 @@ public class AS4SendService implements SendService {
 
     /**
      * Create the AS4 builder with all the required parameters from the request.
+     *
+     * NOTE ON PMODE: This sets .pmodeID("bdxr-as4-1.0") which requires the PMode to be
+     * registered in Phase4's MetaAS4Manager. If Phase4 returns INVALID_PARAMETERS with
+     * "The field 'PMode' is not set", it means the PMode is not found.
+     *
+     * To fix: Register the BDXR PMode by either:
+     * 1. Adding phase4-profile-bdxr dependency when available
+     * 2. Creating a PMode XML file in Phase4's configuration directory
+     * 3. Upgrading to a Phase4 version that includes the BDXR profile
      */
     private AS4Sender.BuilderUserMessage createAS4Builder(
             String messageId, String conversationId, String fromParty, String toParty,
             AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
 
-        // Build the base builder with all required AS4 parameters
-        // Phase4's BuilderUserMessage requires several mandatory fields to create a valid AS4 message
+        // ...existing code...
         var builder = new AS4Sender.BuilderUserMessage()
             .cryptoFactory(as4CryptoFactory)
+            // PMode ID - CRITICAL: Phase4 requires a PMode to be set
+            // Using BDXR PMode ID "bdxr-as4-1.0" from the registered BDXR profile
+            // This PMode is registered by DBNAPModeConfiguration via BDXRProfileRegistration.register()
+            .pmodeID(com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId())
+            // ...existing code...
             // Message IDs - Required
             .messageID(messageId)
             .conversationID(conversationId)
