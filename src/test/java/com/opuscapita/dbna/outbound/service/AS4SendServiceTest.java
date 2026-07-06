@@ -2,6 +2,7 @@ package com.opuscapita.dbna.outbound.service;
 
 import com.helger.phase4.crypto.IAS4CryptoFactory;
 import com.opuscapita.dbna.outbound.config.AS4Configuration;
+import com.opuscapita.dbna.outbound.exception.DocumentValidationException;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
 import com.opuscapita.dbna.outbound.model.AS4TransmissionResponse;
@@ -47,6 +48,12 @@ class AS4SendServiceTest {
     private AS4Configuration as4Configuration;
 
     @Mock
+    private SMLLookupService smlLookupService;
+
+    @Mock
+    private SMPService smpService;
+
+    @Mock
     private ContainerMessage containerMessage;
 
     @Mock
@@ -59,17 +66,17 @@ class AS4SendServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         // Create a real instance first
-        AS4SendService realService = new AS4SendService(storage, ublDocumentService, as4CryptoFactory, as4Configuration);
-        
+        AS4SendService realService = new AS4SendService(storage, ublDocumentService, as4CryptoFactory, as4Configuration, smlLookupService, smpService);
+
         // Create a spy so we can mock sendAS4Message while keeping other methods real
         as4SendService = spy(realService);
 
         // Load actual UBL test file
         testUblContent = TestResourceLoader.loadTestInvoice();
         
-        // Mock UBL validation to return true by default (can be overridden in individual tests)
-        lenient().when(ublDocumentService.validateUBLDocument(anyString())).thenReturn(true);
-        
+        // Mock UBL validation to do nothing by default (void method, can be overridden in individual tests)
+        lenient().doNothing().when(ublDocumentService).validateUBLDocument(anyString());
+
         // Mock sendAS4Message to return a successful response by default
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
@@ -83,10 +90,9 @@ class AS4SendServiceTest {
         ReflectionTestUtils.setField(as4SendService, "fromPartyId", "test-sender");
         ReflectionTestUtils.setField(as4SendService, "fromPartyRole", "http://test/initiator");
         ReflectionTestUtils.setField(as4SendService, "toPartyRole", "http://test/responder");
-        ReflectionTestUtils.setField(as4SendService, "serviceType", "");
-        ReflectionTestUtils.setField(as4SendService, "defaultService", "http://test/service");
-        ReflectionTestUtils.setField(as4SendService, "defaultAction", "http://test/action");
-        ReflectionTestUtils.setField(as4SendService, "defaultReceiverEndpointUrl", "http://localhost:8080/as4");
+        ReflectionTestUtils.setField(as4SendService, "receiverEndpointOverride", "http://localhost:8080/as4");
+        ReflectionTestUtils.setField(as4SendService, "smlUrl", "");
+        ReflectionTestUtils.setField(as4SendService, "smpUrl", "");
         ReflectionTestUtils.setField(as4SendService, "maxRetryAttempts", 3);
         ReflectionTestUtils.setField(as4SendService, "retryDelayMs", 1000L);
     }
@@ -268,11 +274,11 @@ class AS4SendServiceTest {
         as4SendService.send(containerMessage);
 
         // Assert
-        verify(metadata).getSenderId();
-        verify(metadata).getRecipientId();
-        verify(metadata).getMessageId();
-        verify(metadata).getDocumentTypeIdentifier();
-        verify(metadata).getProfileTypeIdentifier();
+        verify(metadata, atLeastOnce()).getSenderId();
+        verify(metadata, atLeastOnce()).getRecipientId();
+        verify(metadata, atLeastOnce()).getMessageId();
+        verify(metadata, atLeastOnce()).getDocumentTypeIdentifier();
+        verify(metadata, atLeastOnce()).getProfileTypeIdentifier();
     }
 
     @Test
@@ -410,7 +416,8 @@ class AS4SendServiceTest {
         
         // For this test, use the real sendAS4Message method so validation actually happens
         doCallRealMethod().when(as4SendService).sendAS4Message(any(AS4SendRequest.class));
-        when(ublDocumentService.validateUBLDocument(invalidContent)).thenReturn(false);
+        doThrow(new DocumentValidationException("Invalid UBL document"))
+            .when(ublDocumentService).validateUBLDocument(invalidContent);
 
         // Act
         Exception exception = assertThrows(Exception.class, () -> {

@@ -114,19 +114,19 @@ class SMLLookupServiceTest {
     @Test
     @DisplayName("Should support different SML environments")
     void testSMLEnvironmentConfiguration() {
-        // Test that smlEnvironment property can be set and used
+        // Test that smlUrl property can be set for different environments
         // Production: sml.dbnalliance.net
         // Test: sml.dbnalliance.com
         // Pilot: sml.dbnalliancepilot.net
 
         // Set to test environment
-        ReflectionTestUtils.setField(smlLookupService, "smlEnvironment", "test");
-        
+        ReflectionTestUtils.setField(smlLookupService, "smlUrl", "sml.dbnalliance.com");
+
         // Set to pilot environment
-        ReflectionTestUtils.setField(smlLookupService, "smlEnvironment", "pilot");
-        
+        ReflectionTestUtils.setField(smlLookupService, "smlUrl", "sml.dbnalliancepilot.net");
+
         // Set to production environment
-        ReflectionTestUtils.setField(smlLookupService, "smlEnvironment", "production");
+        ReflectionTestUtils.setField(smlLookupService, "smlUrl", "sml.dbnalliance.net");
 
         assertTrue(true); // Environment configuration is valid
     }

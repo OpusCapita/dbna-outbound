@@ -2,6 +2,7 @@ plugins {
     java
     id("org.springframework.boot") version "3.4.1"
     id("io.spring.dependency-management") version "1.1.7"
+    jacoco
 }
 
 group = "com.opuscapita.dbna.outbound"
@@ -123,3 +124,26 @@ tasks.bootJar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
+// Configure Jacoco for code coverage
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    
+    reports {
+        xml.required = true
+        csv.required = true
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir("reports/jacoco")
+    }
+    
+    // Include code coverage for main source only, exclude tests
+    classDirectories.setFrom(sourceSets.main.get().output.classesDirs)
+}
+
+// Ensure test coverage report is generated after tests
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
+}
