@@ -25,21 +25,18 @@ import java.util.regex.Pattern;
  * According to DBNA SML Profile v1.2:
  * - Constructs DNS names using SHA256 hash and Base32 encoding of party identifiers
  * - Queries NAPTR DNS records to discover SMP service endpoints
- * - Supports production (sml.dbnalliance.net), test (sml.dbnalliance.com), and pilot environments
+ * - SML URL is configured via dbna.sml.url property (production: sml.dbnalliance.net, test: sml.dbnalliance.com)
  */
 @Service
 public class SMLLookupService {
     private static final Logger logger = LoggerFactory.getLogger(SMLLookupService.class);
     
-    private static final String SML_PRODUCTION = "sml.dbnalliance.net";
-    private static final String SML_TEST = "sml.dbnalliance.com";
-    private static final String SML_PILOT = "sml.dbnalliancepilot.net";
     private static final String NAPTR_SERVICE_TYPE = "oasis-bdxr-smp-2#dbnalliance-1.1";
     private static final Pattern SMP_URL_PATTERN = Pattern.compile("!\\^.*\\$!([^!]+)!");
     
-    @Value("${dbna.sml.environment:production}")
-    private String smlEnvironment;
-    
+    @Value("${dbna.sml.url:sml.dbnalliance.net}")
+    private String smlUrl;
+
     @Value("${dbna.sml.dns-server:8.8.8.8}")
     private String dnsServer;
     
@@ -113,9 +110,7 @@ public class SMLLookupService {
         
         logger.debug("Base32 encoded and stripped: {}", encoded);
         
-        String smlDomain = getSMLDomain();
-        String dnsName = encoded + "." + smlDomain;
-        
+        String dnsName = encoded + "." + smlUrl;
         logger.debug("Final DNS name for NAPTR query: {}", dnsName);
         return dnsName;
     }
@@ -225,30 +220,6 @@ public class SMLLookupService {
         }
         logger.warn("Could not extract SMP URL from NAPTR record: {}", naptyRecord);
         return null;
-    }
-    
-    /**
-     * Returns the SML domain based on the configured environment
-     */
-    private String getSMLDomain() {
-        return switch (smlEnvironment.toLowerCase()) {
-            case "test" -> {
-                logger.debug("Using test SML environment: {}", SML_TEST);
-                yield SML_TEST;
-            }
-            case "pilot" -> {
-                logger.debug("Using pilot SML environment: {}", SML_PILOT);
-                yield SML_PILOT;
-            }
-            case "production", "" -> {
-                logger.debug("Using production SML environment: {}", SML_PRODUCTION);
-                yield SML_PRODUCTION;
-            }
-            default -> {
-                logger.debug("Using production SML environment: {}", SML_PRODUCTION);
-                yield SML_PRODUCTION;
-            }
-        };
     }
 }
 
