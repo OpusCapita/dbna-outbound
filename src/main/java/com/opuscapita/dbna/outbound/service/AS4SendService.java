@@ -57,8 +57,6 @@ public class AS4SendService implements SendService {
     private String fromPartyRole;
     @Value("${dbna.to-party-role:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}")
     private String toPartyRole;
-    @Value("${dbna.service-type:}")
-    private String serviceType;
 
     @Value("${dbna.receiver.endpoint-url:http://localhost:3310/as4}")
     private String defaultReceiverEndpointUrl;
@@ -109,14 +107,9 @@ public class AS4SendService implements SendService {
         }
         
         // Extract metadata from ContainerMessage to build AS4SendRequest
-        // Try to get endpoint URL from route/metadata, fallback to default
-        String endpointUrl = defaultReceiverEndpointUrl;
-        // If there's a way to get it from cm.getRoute() or metadata, use that
-        // For now, use the configured default
-        
         AS4SendRequest request = AS4SendRequest.builder()
             .ublDocumentContent(ublContent)
-            .receiverEndpointUrl(endpointUrl)
+            .receiverEndpointUrl(defaultReceiverEndpointUrl)  // Use configured default endpoint
             .senderId(cm.getMetadata().getSenderId())
             .receiverId(cm.getMetadata().getRecipientId())
             .conversationId(cm.getMetadata().getMessageId())
@@ -181,7 +174,7 @@ public class AS4SendService implements SendService {
                     .build();
             }
             
-            if (request.getReceiverEndpointUrl() == null || request.getReceiverEndpointUrl().trim().isEmpty()) {
+            if (!isValidEndpointUrl(request.getReceiverEndpointUrl())) {
                 logger.warn("Receiver endpoint URL is required");
                 return responseBuilder
                     .success(false)
@@ -190,7 +183,7 @@ public class AS4SendService implements SendService {
                     .build();
             }
             
-            if (request.getSenderId() == null || request.getSenderId().trim().isEmpty()) {
+            if (!isValidString(request.getSenderId())) {
                 logger.warn("Sender ID is required");
                 return responseBuilder
                     .success(false)
@@ -199,7 +192,7 @@ public class AS4SendService implements SendService {
                     .build();
             }
             
-            if (request.getReceiverId() == null || request.getReceiverId().trim().isEmpty()) {
+            if (!isValidString(request.getReceiverId())) {
                 logger.warn("Receiver ID is required");
                 return responseBuilder
                     .success(false)
@@ -235,18 +228,16 @@ public class AS4SendService implements SendService {
             }
             // Prepare AS4 message parameters for DBNA network
             String messageId = MessageHelperMethods.createRandomMessageID();
-            String conversationId = request.getConversationId() != null ? 
+            String conversationId = isValidString(request.getConversationId()) ?
                 request.getConversationId() : messageId;
 
-            // Use receiver endpoint (discovered from SMP in the controller)
-            String receiverEndpointUrl = request.getReceiverEndpointUrl();
-
             // Use sender/receiver IDs from request or defaults
-            String fromParty = request.getSenderId() != null ? request.getSenderId() : fromPartyId;
+            String fromParty = isValidString(request.getSenderId()) ? request.getSenderId() : fromPartyId;
             String toParty = request.getReceiverId();
+
             logger.info("Sending AS4 message to DBNA network with X.509 certificate authentication...");
             logger.debug("Message ID: {}, From: {}, To: {}, Endpoint: {}",
-                messageId, fromParty, toParty, receiverEndpointUrl);
+                messageId, fromParty, toParty, request.getReceiverEndpointUrl());
             logger.debug("Using AS4 keystore: {}, key alias: {}",
                 as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
             try {
@@ -267,8 +258,7 @@ public class AS4SendService implements SendService {
                 // Ensure global scope is set before creating the builder
                 // This is required by Phase4's MetaAS4Manager singleton
                 var builder = ensureScopeAndCreateBuilder(
-                    messageId, conversationId, fromParty, toParty, receiverEndpointUrl, serviceType,
-                    request, as4CryptoFactory
+                    messageId, conversationId, fromParty, toParty, request, as4CryptoFactory
                 );
 
                 // Add the attachment to the builder
@@ -328,13 +318,11 @@ public class AS4SendService implements SendService {
      */
     private AS4Sender.BuilderUserMessage ensureScopeAndCreateBuilder(
             String messageId, String conversationId, String fromParty, String toParty,
-            String receiverEndpointUrl, String serviceType, AS4SendRequest request,
-            IAS4CryptoFactory as4CryptoFactory) throws Exception {
+            AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
 
         // First, try to create the builder normally
         try {
-            return createAS4Builder(messageId, conversationId, fromParty, toParty,
-                receiverEndpointUrl, serviceType, request, as4CryptoFactory);
+            return createAS4Builder(messageId, conversationId, fromParty, toParty, request, as4CryptoFactory);
         } catch (IllegalStateException e) {
             // If we get a scope error, that's expected - Phase4 will need scope initialization
             // But at this point, we're in a synchronized block so future requests should work
@@ -347,12 +335,11 @@ public class AS4SendService implements SendService {
     }
 
     /**
-     * Create the AS4 builder with all the required parameters.
+     * Create the AS4 builder with all the required parameters from the request.
      */
     private AS4Sender.BuilderUserMessage createAS4Builder(
             String messageId, String conversationId, String fromParty, String toParty,
-            String receiverEndpointUrl, String serviceType, AS4SendRequest request,
-            IAS4CryptoFactory as4CryptoFactory) {
+            AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
 
         return new AS4Sender.BuilderUserMessage()
             .cryptoFactory(as4CryptoFactory)
@@ -365,14 +352,26 @@ public class AS4SendService implements SendService {
             // Receiver Party
             .toPartyID(toParty)
             .toRole(toPartyRole)
-            // Service and Action are contained within the service endpoint URL
-            .service(receiverEndpointUrl, serviceType)
             // Agreement if provided
             .agreementRef(request.getAgreementRef())
-            // Endpoint
+            // Endpoint from request
             .endpointURL(request.getReceiverEndpointUrl())
             // Payload - note: attachment was created in the calling method
             // We'll need to add it in the calling method
             ;
+    }
+
+    /**
+     * Helper method to validate that a string is not null or empty.
+     */
+    private boolean isValidString(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    /**
+     * Helper method to validate endpoint URL is not null or empty.
+     */
+    private boolean isValidEndpointUrl(String url) {
+        return isValidString(url);
     }
 }
