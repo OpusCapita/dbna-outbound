@@ -373,7 +373,7 @@ public class AS4SendService implements SendService {
                         logger.debug("Calling Phase4 sendMessageAndCheckForReceipt()...");
                         sendResult = builder.sendMessageAndCheckForReceipt();
                         logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} (type: {})",
-                            sendResult, sendResult != null ? sendResult.getClass().getSimpleName() : "null");
+                            sendResult, sendResult.getClass().getSimpleName());
                     } catch (Exception e) {
                         logger.error("Phase4 sendMessageAndCheckForReceipt() threw an exception", e);
 
@@ -406,7 +406,7 @@ public class AS4SendService implements SendService {
                     // Check if the result indicates success
                     // The enum constant for success is typically named SUCCESS
                     String resultName = sendResult.toString();
-                    if (resultName.contains("SUCCESS") || resultName.equals("SUCCESS")) {
+                    if (resultName.contains("SUCCESS")) {
                         logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
                         return responseBuilder
                             .success(true)

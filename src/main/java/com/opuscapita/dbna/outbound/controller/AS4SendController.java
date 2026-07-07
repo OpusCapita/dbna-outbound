@@ -63,7 +63,7 @@ public class AS4SendController {
     
     /**
      * Send UBL document via AS4 protocol over DBNA network
-     * 
+     *
      * Process:
      * 1. Validate document content
      * 2. Query SML to discover receiver's SMP endpoint
@@ -124,9 +124,6 @@ public class AS4SendController {
             } catch (IllegalArgumentException e) {
                 throw new DocumentValidationException(e.getMessage());
             } catch (Exception e) {
-                if (e instanceof SMLLookupException || e instanceof DocumentValidationException) {
-                    throw (RuntimeException) e;
-                }
                 throw new SMLLookupException("Failed to query SML for receiver endpoint: " + e.getMessage(), e);
             }
         }
