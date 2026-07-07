@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
+import jakarta.annotation.PostConstruct;
 
 import java.util.Base64;
 
@@ -38,8 +39,8 @@ public class SiriusConfiguration {
     @Value("${sirius.size-limit:5242880}")
     private Long sizeLimit;
 
-    @Value("${sirius.timeout:3}")
-    private int timeout;
+    @Value("${sirius.timeout:180000}")
+    private long timeout;
 
     @Getter
     @Value("${sirius.retry-count:8}")
@@ -49,12 +50,21 @@ public class SiriusConfiguration {
     @Value("${sirius.retry-delay:900000}")
     private int retryDelay;
 
+    @PostConstruct
+    public void logConfiguration() {
+        logger.info("Sirius Configuration Initialized:");
+        logger.info("  URL: {}", url);
+        logger.info("  Timeout: {} ms ({} minutes)", timeout, timeout / 60000);
+        logger.info("  Retry Count: {}", retryCount);
+        logger.info("  Retry Delay: {} ms ({} minutes)", retryDelay, retryDelay / 60000);
+        logger.info("  Size Limit: {} bytes ({} MB)", sizeLimit, sizeLimit / (1024 * 1024));
+    }
+
     private RequestConfig getRequestConfig() {
-        long timeoutMs = timeout * 60L * 1000L;
         return RequestConfig.custom()
-                .setConnectionRequestTimeout(Timeout.ofMilliseconds(timeoutMs))
-                .setConnectTimeout(Timeout.ofMilliseconds(timeoutMs))
-                .setResponseTimeout(Timeout.ofMilliseconds(timeoutMs))
+                .setConnectionRequestTimeout(Timeout.ofMilliseconds(timeout))
+                .setConnectTimeout(Timeout.ofMilliseconds(timeout))
+                .setResponseTimeout(Timeout.ofMilliseconds(timeout))
                 .build();
     }
 

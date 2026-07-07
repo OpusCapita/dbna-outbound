@@ -17,6 +17,10 @@ dbna:
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
   receiver:
     url: ${DBNA_RECEIVER_URL:https://localhost:3210/messages}  # Ensure this points to the correct AS4 endpoint
+  retry:
+    max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
+    delay: ${DBNA_RETRY_DELAY:1000}
+    timeout: ${DBNA_RETRY_TIMEOUT:10000}  # Timeout in milliseconds for AS4 sending (default: 10 seconds)
   sml:
     url: ${DBNA_SML_URL:sml.dbnalliance.com}
     dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}

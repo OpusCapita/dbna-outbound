@@ -14,6 +14,7 @@ import com.opuscapita.dbna.outbound.model.DummyResponse;
 import com.opuscapita.dbna.common.container.ContainerMessage;
 import com.opuscapita.dbna.outbound.model.TransmissionResponse;
 import com.opuscapita.dbna.common.storage.Storage;
+import lombok.Getter;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,9 +83,13 @@ public class AS4SendService implements SendService {
     @Value("${dbna.retry.max-attempts:3}")
     private int maxRetryAttempts;
 
-    @Value("${dbna.retry.delay-ms:1000}")
+    @Value("${dbna.retry.delay:1000}")
     private long retryDelayMs;
-    
+
+    @Getter
+    @Value("${dbna.retry.timeout:30000}")
+    private long timeoutMs;
+
     /**
      * Constructor with dependency injection
      * Spring will automatically inject all required bean dependencies
@@ -115,7 +120,9 @@ public class AS4SendService implements SendService {
     @Override
     public TransmissionResponse send(ContainerMessage cm) throws Exception {
         logger.info("AS4SendService.send() called for message: {}", cm.getFileName());
-        
+        logger.debug("AS4 Configuration - Max Retries: {}, Retry Delay: {} ms, Timeout: {} ms ({} minutes)",
+            maxRetryAttempts, retryDelayMs, timeoutMs, timeoutMs / 60000);
+
         // Check for test error scenarios
         DummyResponse.throwExceptionIfExpectedInFilename(cm);
         

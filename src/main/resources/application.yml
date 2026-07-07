@@ -23,12 +23,23 @@ dbna:
     url: ${DBNA_RECEIVER_URL:}
   retry:
     max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
-    delay-ms: ${DBNA_RETRY_DELAY_MS:1000}
+    delay: ${DBNA_RETRY_DELAY:1000}
+    timeout: ${DBNA_RETRY_TIMEOUT:30000}  # Timeout in milliseconds for AS4 message sending (default: 30 seconds)
   sml:
     url: ${DBNA_SML_URL:sml.dbnalliance.net}
     dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
   smp:
     url: ${DBNA_SMP_URL:}
+
+# Sirius Configuration
+sirius:
+  url: ${SIRIUS_URL:}
+  username: ${SIRIUS_USERNAME:}
+  password: ${SIRIUS_PASSWORD:}
+  timeout: ${SIRIUS_TIMEOUT:180000}  # Timeout in milliseconds for Sirius HTTP operations (default: 3 minutes)
+  size-limit: ${SIRIUS_SIZE_LIMIT:5242880}  # Maximum file size in bytes (5MB default)
+  retry-count: ${SIRIUS_RETRY_COUNT:8}  # Number of retries on connection failure
+  retry-delay: ${SIRIUS_RETRY_DELAY:900000}  # Delay between retries in milliseconds
 
 # AS4 Configuration with X.509 Certificate Support
 # Note: Profile-specific configurations override these defaults
