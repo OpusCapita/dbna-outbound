@@ -2,6 +2,9 @@ version: '3.8'
 
 services:
   main:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: opuscapita/dbna-outbound:dev
     container_name: dbna-outbound
     ports:
@@ -15,7 +18,7 @@ services:
       - dbna.service-type=
       - dbna.service=http://dbna.opuscapita.com/services
       - dbna.action=http://dbna.opuscapita.com/sendDocument
-      - dbna.receiver.endpoint-url=http://localhost:3310/as4
+      - dbna.receiver.url=http://localhost:3310/as4
       - dbna.retry.max-attempts=3
       - dbna.retry.delay-ms=1000
       - as4.keystore.path=keystore.jks
