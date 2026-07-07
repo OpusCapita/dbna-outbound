@@ -20,7 +20,7 @@ dbna:
   service-type: ${DBNA_SERVICE_TYPE:}
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
   receiver:
-    url: ${DBNA_RECEIVER_URL:}
+    url: ${DBNA_RECEIVER_URL:}  # Setting this overrides receiver URL acquired from SMP/SML
   retry:
     max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
     delay: ${DBNA_RETRY_DELAY:1000}
@@ -29,7 +29,7 @@ dbna:
     url: ${DBNA_SML_URL:sml.dbnalliance.net}
     dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
   smp:
-    url: ${DBNA_SMP_URL:}
+    url: ${DBNA_SMP_URL:} # Setting this overrides SMP URL acquired from SML
 
 # Sirius Configuration
 sirius:
