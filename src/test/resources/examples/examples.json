@@ -4,7 +4,7 @@
       "name": "Health Check",
       "description": "Check if the AS4 service is running",
       "method": "GET",
-      "endpoint": "http://localhost:8080/api/as4/health",
+      "endpoint": "http://localhost:3310/api/as4/health",
       "response": {
         "status": 200,
         "body": "AS4 Outbound Service is running"
@@ -14,7 +14,7 @@
       "name": "Send Invoice - GLN Identifiers",
       "description": "Send a UBL invoice using GLN (Global Location Number) identifiers",
       "method": "POST",
-      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "endpoint": "http://localhost:3310/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
       "headers": {
         "Content-Type": "application/xml"
       },
@@ -33,7 +33,7 @@
       "name": "Send Invoice - DUNS Identifiers",
       "description": "Send a UBL invoice using Dun & Bradstreet (DUNS) identifiers",
       "method": "POST",
-      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/DUNS::116902221/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "endpoint": "http://localhost:3310/api/as4/send/GLN::1234567890123/DUNS::116902221/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
       "headers": {
         "Content-Type": "application/xml"
       },
@@ -52,7 +52,7 @@
       "name": "Send Despatch Advice",
       "description": "Send a despatch advice (shipment notification) document",
       "method": "POST",
-      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/DUNS::079961550/urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2/urn:fdc:peppol.eu:2017:poacc:despatchadvice:01:1.0",
+      "endpoint": "http://localhost:3310/api/as4/send/GLN::1234567890123/DUNS::079961550/urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2/urn:fdc:peppol.eu:2017:poacc:despatchadvice:01:1.0",
       "headers": {
         "Content-Type": "application/xml"
       },
@@ -71,7 +71,7 @@
       "name": "Send Credit Note",
       "description": "Send a credit note document using US:EIN identifier",
       "method": "POST",
-      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/US:EIN::365060483/urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "endpoint": "http://localhost:3310/api/as4/send/GLN::1234567890123/US:EIN::365060483/urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
       "headers": {
         "Content-Type": "application/xml"
       },
@@ -90,7 +90,7 @@
       "name": "Error: Invalid Receiver ID Format",
       "description": "Demonstrates validation error - receiver ID missing delimiter",
       "method": "POST",
-      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/GLN-9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "endpoint": "http://localhost:3310/api/as4/send/GLN::1234567890123/GLN-9876543210987/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
       "headers": {
         "Content-Type": "application/xml"
       },
@@ -109,7 +109,7 @@
       "name": "Error: Empty Document",
       "description": "Demonstrates validation error - empty document content",
       "method": "POST",
-      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/DUNS::079961550/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "endpoint": "http://localhost:3310/api/as4/send/GLN::1234567890123/DUNS::079961550/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
       "headers": {
         "Content-Type": "application/xml"
       },
@@ -128,7 +128,7 @@
       "name": "Error: SML Lookup Failed",
       "description": "Demonstrates error - receiver not found in SML",
       "method": "POST",
-      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9999999999999/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "endpoint": "http://localhost:3310/api/as4/send/GLN::1234567890123/GLN::9999999999999/urn:oasis:names:specification:ubl:schema:xsd:Invoice-2/urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
       "headers": {
         "Content-Type": "application/xml"
       },
@@ -147,7 +147,7 @@
       "name": "Error: SMP Discovery Failed",
       "description": "Demonstrates error - document type not supported",
       "method": "POST",
-      "endpoint": "http://localhost:8080/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:invalid:document:type/urn:invalid:process/",
+      "endpoint": "http://localhost:3310/api/as4/send/GLN::1234567890123/GLN::9876543210987/urn:invalid:document:type/urn:invalid:process/",
       "headers": {
         "Content-Type": "application/xml"
       },

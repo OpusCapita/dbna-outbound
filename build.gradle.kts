@@ -2,6 +2,7 @@ plugins {
     java
     id("org.springframework.boot") version "3.4.1"
     id("io.spring.dependency-management") version "1.1.7"
+    jacoco
 }
 
 group = "com.opuscapita.dbna.outbound"
@@ -15,12 +16,15 @@ java {
 repositories {
     mavenLocal()
     mavenCentral()
-    maven {
-        name = "nexus"
-        url = uri(extra["MAVEN_REGISTRY_URL"] as String)
-        credentials {
-            username = extra["MAVEN_REGISTRY_USER"] as String
-            password = extra["MAVEN_REGISTRY_PASS"] as String
+    // Nexus repository - only added if credentials are available (optional for CI/Docker builds)
+    if (extra.has("MAVEN_REGISTRY_URL")) {
+        maven {
+            name = "nexus"
+            url = uri(extra["MAVEN_REGISTRY_URL"] as String)
+            credentials {
+                username = extra["MAVEN_REGISTRY_USER"] as String
+                password = extra["MAVEN_REGISTRY_PASS"] as String
+            }
         }
     }
 }
@@ -35,27 +39,32 @@ dependencies {
     // Spring Boot Actuator for monitoring and management
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     
+    // Spring Retry for resilience patterns
+    implementation("org.springframework.retry:spring-retry")
+    
     // Spring Cloud Config
     implementation("org.springframework.cloud:spring-cloud-context")
     
     // AS4 Support - Phase4 library configured for DBNA network
-    // The phase4-lib provides AS4 messaging capabilities that can be configured
-    // for DBNA Alliance network communication (no separate DBNA client needed)
-    // Note: phase4-lib brings in Apache HttpClient 5 transitively
-    implementation("com.helger.phase4:phase4-lib:2.5.0")
+    // Updated to compatible version that works with phase4-profile-dbnalliance
+    implementation("com.helger.phase4:phase4-lib:2.9.3")
+
+    // DBNA Profile for Phase4 - provides DBNA-specific PMode definitions and configurations
+    // This includes the DBNA PMode with proper security and retry parameters
+    implementation("com.helger.phase4:phase4-profile-dbnalliance:2.9.3")
 
     // UBL 2.3 Support
     implementation("com.helger.ubl:ph-ubl23:8.0.2")
     implementation("com.helger.ubl:ph-ubl23-codelists:8.0.2")
     
+    // Jakarta XML Binding - required for UBL document processing
+    implementation("jakarta.xml.bind:jakarta.xml.bind-api:4.0.2")
+    implementation("org.glassfish.jaxb:jaxb-runtime:4.0.5")
+    
     // XML Processing - using versions compatible with phase4
     implementation("com.helger.commons:ph-commons:11.1.5")
     
-    // DBNA Common - common classes for DBNA outbound integration
-    implementation("com.opuscapita.dbna:dbna-common:1.0.2") {
-        exclude(group = "org.springframework.cloud")
-    }
-    
+
     // Apache Commons Lang3 for utility functions
     implementation("org.apache.commons:commons-lang3:3.18.0")
     
@@ -68,6 +77,9 @@ dependencies {
     // Apache HttpClient 5 - explicitly declared for SSL/TLS support
     implementation("org.apache.httpcomponents.client5:httpclient5")
     
+    // Apache HttpClient 4 - for backward compatibility with dbna-common code
+    implementation("org.apache.httpcomponents:httpclient:4.5.14")
+    
     // JetBrains annotations for @NotNull, @Nullable, etc.
     implementation("org.jetbrains:annotations:24.1.0")
 
@@ -77,6 +89,16 @@ dependencies {
     
     // Logging
     implementation("org.slf4j:slf4j-api:2.0.12")
+    
+    // JSON Processing with Gson
+    implementation("com.google.code.gson:gson:2.11.0")
+    
+    // Peppol support
+    implementation("network.oxalis:oxalis-commons:5.0.5")
+    implementation("network.oxalis.vefa:peppol-sbdh:2.0.2")
+    
+    // Google Guava for utilities (used by SMLLookupService)
+    implementation("com.google.guava:guava:33.0.0-jre")
     
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
@@ -102,3 +124,26 @@ tasks.bootJar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
+// Configure Jacoco for code coverage
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    
+    reports {
+        xml.required = true
+        csv.required = true
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir("reports/jacoco")
+    }
+    
+    // Include code coverage for main source only, exclude tests
+    classDirectories.setFrom(sourceSets.main.get().output.classesDirs)
+}
+
+// Ensure test coverage report is generated after tests
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
+}

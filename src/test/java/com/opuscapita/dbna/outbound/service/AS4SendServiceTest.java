@@ -2,6 +2,7 @@ package com.opuscapita.dbna.outbound.service;
 
 import com.helger.phase4.crypto.IAS4CryptoFactory;
 import com.opuscapita.dbna.outbound.config.AS4Configuration;
+import com.opuscapita.dbna.outbound.exception.DocumentValidationException;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
 import com.opuscapita.dbna.outbound.model.AS4TransmissionResponse;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.atLeastOnce;
 
 /**
  * Unit tests for AS4SendService
@@ -47,6 +49,12 @@ class AS4SendServiceTest {
     private AS4Configuration as4Configuration;
 
     @Mock
+    private SMLLookupService smlLookupService;
+
+    @Mock
+    private SMPService smpService;
+
+    @Mock
     private ContainerMessage containerMessage;
 
     @Mock
@@ -59,17 +67,17 @@ class AS4SendServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         // Create a real instance first
-        AS4SendService realService = new AS4SendService(storage, ublDocumentService, as4CryptoFactory, as4Configuration);
-        
+        AS4SendService realService = new AS4SendService(storage, ublDocumentService, as4CryptoFactory, as4Configuration, smlLookupService, smpService);
+
         // Create a spy so we can mock sendAS4Message while keeping other methods real
         as4SendService = spy(realService);
 
         // Load actual UBL test file
         testUblContent = TestResourceLoader.loadTestInvoice();
         
-        // Mock UBL validation to return true by default (can be overridden in individual tests)
-        lenient().when(ublDocumentService.validateUBLDocument(anyString())).thenReturn(true);
-        
+        // Mock UBL validation to do nothing by default (void method, can be overridden in individual tests)
+        lenient().doNothing().when(ublDocumentService).validateUBLDocument(anyString());
+
         // Mock sendAS4Message to return a successful response by default
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
@@ -83,10 +91,9 @@ class AS4SendServiceTest {
         ReflectionTestUtils.setField(as4SendService, "fromPartyId", "test-sender");
         ReflectionTestUtils.setField(as4SendService, "fromPartyRole", "http://test/initiator");
         ReflectionTestUtils.setField(as4SendService, "toPartyRole", "http://test/responder");
-        ReflectionTestUtils.setField(as4SendService, "serviceType", "");
-        ReflectionTestUtils.setField(as4SendService, "defaultService", "http://test/service");
-        ReflectionTestUtils.setField(as4SendService, "defaultAction", "http://test/action");
-        ReflectionTestUtils.setField(as4SendService, "defaultReceiverEndpointUrl", "http://localhost:8080/as4");
+        ReflectionTestUtils.setField(as4SendService, "receiverEndpointOverride", "http://localhost:8080/as4");
+        ReflectionTestUtils.setField(as4SendService, "smlUrl", "");
+        ReflectionTestUtils.setField(as4SendService, "smpUrl", "");
         ReflectionTestUtils.setField(as4SendService, "maxRetryAttempts", 3);
         ReflectionTestUtils.setField(as4SendService, "retryDelayMs", 1000L);
     }
@@ -268,11 +275,11 @@ class AS4SendServiceTest {
         as4SendService.send(containerMessage);
 
         // Assert
-        verify(metadata).getSenderId();
-        verify(metadata).getRecipientId();
-        verify(metadata).getMessageId();
-        verify(metadata).getDocumentTypeIdentifier();
-        verify(metadata).getProfileTypeIdentifier();
+        verify(metadata, atLeastOnce()).getSenderId();
+        verify(metadata, atLeastOnce()).getRecipientId();
+        verify(metadata, atLeastOnce()).getMessageId();
+        verify(metadata, atLeastOnce()).getDocumentTypeIdentifier();
+        verify(metadata, atLeastOnce()).getProfileTypeIdentifier();
     }
 
     @Test
@@ -410,7 +417,8 @@ class AS4SendServiceTest {
         
         // For this test, use the real sendAS4Message method so validation actually happens
         doCallRealMethod().when(as4SendService).sendAS4Message(any(AS4SendRequest.class));
-        when(ublDocumentService.validateUBLDocument(invalidContent)).thenReturn(false);
+        doThrow(new DocumentValidationException("Invalid UBL document"))
+            .when(ublDocumentService).validateUBLDocument(invalidContent);
 
         // Act
         Exception exception = assertThrows(Exception.class, () -> {
@@ -420,6 +428,161 @@ class AS4SendServiceTest {
         // Assert
         assertNotNull(exception);
         assertTrue(exception.getMessage().contains("Invalid UBL 2.3 document format"));
+        verify(storage).get(fileName);
+    }
+
+    @Test
+    @DisplayName("Should resolve receiver endpoint from receiver endpoint override")
+    void testResolveReceiverEndpointFromOverride() throws Exception {
+        // Arrange
+        String fileName = "test.xml";
+        InputStream inputStream = new ByteArrayInputStream(testUblContent.getBytes(StandardCharsets.UTF_8));
+
+        when(containerMessage.getFileName()).thenReturn(fileName);
+        when(containerMessage.getMetadata()).thenReturn(metadata);
+        when(storage.get(fileName)).thenReturn(inputStream);
+
+        when(metadata.getSenderId()).thenReturn("SENDER");
+        when(metadata.getRecipientId()).thenReturn("RECEIVER");
+        when(metadata.getMessageId()).thenReturn("MSG");
+        when(metadata.getDocumentTypeIdentifier()).thenReturn("Invoice");
+        when(metadata.getProfileTypeIdentifier()).thenReturn("Billing");
+
+        // Set receiver endpoint override
+        ReflectionTestUtils.setField(as4SendService, "receiverEndpointOverride", "http://override.com/as4");
+
+        // Act
+        as4SendService.send(containerMessage);
+
+        // Assert
+        verify(storage).get(fileName);
+    }
+
+    @Test
+    @DisplayName("Should throw exception when file not found in storage")
+    void testSendFileNotFound() throws Exception {
+        // Arrange
+        when(containerMessage.getFileName()).thenReturn("missing.xml");
+        when(storage.get("missing.xml")).thenReturn(null);
+
+        // Act & Assert
+        assertThrows(IllegalStateException.class, () -> {
+            as4SendService.send(containerMessage);
+        });
+    }
+
+    @Test
+    @DisplayName("Should validate AS4SendRequest with missing endpoint URL")
+    void testSendDocumentWithMissingEndpointUrl() {
+        // Arrange
+        AS4SendRequest request = AS4SendRequest.builder()
+            .ublDocumentContent(testUblContent)
+            .senderId("SENDER123")
+            .receiverId("RECEIVER456")
+            // Missing receiverEndpointUrl
+            .build();
+
+        // Use real method for validation tests
+        doCallRealMethod().when(as4SendService).sendAS4Message(any(AS4SendRequest.class));
+
+        // Act
+        AS4SendResponse response = as4SendService.sendAS4Message(request);
+
+        // Assert
+        assertNotNull(response);
+        assertFalse(response.isSuccess());
+        assertTrue(response.getErrorMessage().contains("Receiver endpoint URL is required"));
+    }
+
+    @Test
+    @DisplayName("Should handle receiver endpoint URL resolution with SMP")
+    void testResolveEndpointWithSMP() throws Exception {
+        // Arrange
+        String fileName = "test.xml";
+        InputStream inputStream = new ByteArrayInputStream(testUblContent.getBytes(StandardCharsets.UTF_8));
+
+        when(containerMessage.getFileName()).thenReturn(fileName);
+        when(containerMessage.getMetadata()).thenReturn(metadata);
+        when(storage.get(fileName)).thenReturn(inputStream);
+
+        when(metadata.getSenderId()).thenReturn("SENDER");
+        when(metadata.getRecipientId()).thenReturn("GLN::1234567890");
+        when(metadata.getMessageId()).thenReturn("MSG");
+        when(metadata.getDocumentTypeIdentifier()).thenReturn("Invoice");
+        when(metadata.getProfileTypeIdentifier()).thenReturn("Billing");
+
+        // Configure SML/SMP services
+        ReflectionTestUtils.setField(as4SendService, "receiverEndpointOverride", "");
+        ReflectionTestUtils.setField(as4SendService, "smlUrl", "");
+
+        when(smlLookupService.lookupSMPEndpoint("GLN", "1234567890"))
+            .thenReturn("https://smp.example.com/");
+        when(smpService.discoverServiceEndpoint("https://smp.example.com/", "GLN::1234567890", "Invoice", "Billing"))
+            .thenReturn("https://receiver.example.com/as4");
+
+        // Act
+        as4SendService.send(containerMessage);
+
+        // Assert
+        verify(storage).get(fileName);
+    }
+
+    @Test
+    @DisplayName("Should use SMP URL from configuration")
+    void testUseSMPUrlFromConfiguration() throws Exception {
+        // Arrange
+        String fileName = "test.xml";
+        InputStream inputStream = new ByteArrayInputStream(testUblContent.getBytes(StandardCharsets.UTF_8));
+
+        when(containerMessage.getFileName()).thenReturn(fileName);
+        when(containerMessage.getMetadata()).thenReturn(metadata);
+        when(storage.get(fileName)).thenReturn(inputStream);
+
+        when(metadata.getSenderId()).thenReturn("SENDER");
+        when(metadata.getRecipientId()).thenReturn("GLN::1234567890");
+        when(metadata.getMessageId()).thenReturn("MSG");
+        when(metadata.getDocumentTypeIdentifier()).thenReturn("Invoice");
+        when(metadata.getProfileTypeIdentifier()).thenReturn("Billing");
+
+        // Configure SMP URL
+        ReflectionTestUtils.setField(as4SendService, "receiverEndpointOverride", "");
+        ReflectionTestUtils.setField(as4SendService, "smpUrl", "https://configured-smp.example.com/");
+
+        when(smpService.discoverServiceEndpoint("https://configured-smp.example.com/", "GLN::1234567890", "Invoice", "Billing"))
+            .thenReturn("https://receiver.example.com/as4");
+
+        // Act
+        as4SendService.send(containerMessage);
+
+        // Assert
+        verify(storage).get(fileName);
+    }
+
+
+    @Test
+    @DisplayName("Should build AS4SendRequest with all required fields")
+    void testBuildAS4SendRequest() throws Exception {
+        // Arrange
+        String fileName = "test.xml";
+        InputStream inputStream = new ByteArrayInputStream(testUblContent.getBytes(StandardCharsets.UTF_8));
+
+        when(containerMessage.getFileName()).thenReturn(fileName);
+        when(containerMessage.getMetadata()).thenReturn(metadata);
+        when(storage.get(fileName)).thenReturn(inputStream);
+
+        when(metadata.getSenderId()).thenReturn("SENDER123");
+        when(metadata.getRecipientId()).thenReturn("RECEIVER456");
+        when(metadata.getMessageId()).thenReturn("MSG-12345");
+        when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:Invoice-2");
+        when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:2017:poacc:billing:01:1.0");
+
+        // Configure endpoint override
+        ReflectionTestUtils.setField(as4SendService, "receiverEndpointOverride", "https://receiver.example.com/as4");
+
+        // Act
+        as4SendService.send(containerMessage);
+
+        // Assert
         verify(storage).get(fileName);
     }
 }

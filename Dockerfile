@@ -11,6 +11,9 @@ LABEL author="Kamil Barnik <kamil.barnik@gep.com>"
 LABEL maintainer="GEP DBNA Team"
 LABEL description="DBNA Outbound Service"
 
+# Install curl for health checks
+RUN apk add --no-cache curl
+
 # Create app user for security
 RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser
@@ -27,12 +30,12 @@ RUN mkdir -p /app/storage /app/config && \
 # Switch to non-root user
 USER appuser
 
-# Health check endpoint
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+# Health check endpoint - use new dedicated health endpoint
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3310/api/health/check || exit 1
 
 # Expose port
-EXPOSE 8080
+EXPOSE 3310
 
 # Set Java options for Kubernetes environment
 ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseStringDeduplication"

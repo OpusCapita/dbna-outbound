@@ -30,9 +30,9 @@ spec:
         image: dbna-outbound:latest
         imagePullPolicy: IfNotPresent
         ports:
-        - name: http
-          containerPort: 8080
-          protocol: TCP
+         - name: http
+           containerPort: 3310
+           protocol: TCP
         env:
         - name: SPRING_PROFILES_ACTIVE
           value: "prod"

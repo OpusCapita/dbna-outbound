@@ -7,8 +7,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.IOException;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,7 +36,7 @@ public class SMPService {
     private static final String HEADER_IF_MODIFIED_SINCE = "If-Modified-Since";
     private static final String HEADER_LAST_MODIFIED = "Last-Modified";
     private static final long CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
-    
+
     private final HttpClient httpClient;
     
     // Cache for ServiceGroup and ServiceMetadata resources
@@ -55,25 +62,27 @@ public class SMPService {
         if (smpEndpoint == null || smpEndpoint.trim().isEmpty()) {
             throw new IllegalArgumentException("SMP endpoint is required");
         }
-        
+
         logger.info("Discovering service endpoint from SMP: {}", smpEndpoint);
         logger.debug("Participant: {}, DocumentType: {}, Process: {}", participantId, documentTypeId, processId);
         
         try {
-            // Step 1: Query ServiceGroup to verify document type support
-            if (!isDocumentTypeSupported(smpEndpoint, participantId, documentTypeId)) {
+            // Step 1: Query ServiceGroup to acquire the exact serviceReference for the requested document type
+            String serviceReference = getServiceReferenceFromServiceGroup(smpEndpoint, participantId, documentTypeId);
+            if (serviceReference == null) {
                 logger.warn("Document type {} not supported by participant {}", documentTypeId, participantId);
                 return null;
             }
-            
-            // Step 2: Query ServiceMetadata to get endpoint information
-            String endpoint = queryServiceEndpoint(smpEndpoint, participantId, documentTypeId, processId);
-            
+            logger.debug("Acquired serviceReference from ServiceGroup: {}", serviceReference);
+
+            // Step 2: Query ServiceMetadata using the serviceReference to get endpoint information
+            String endpoint = queryServiceEndpoint(smpEndpoint, participantId, serviceReference, processId);
+
             if (endpoint != null) {
                 logger.info("Successfully discovered service endpoint: {}", endpoint);
                 return endpoint;
             } else {
-                logger.warn("No service endpoint found for document type: {}, process: {}", documentTypeId, processId);
+                logger.warn("No service endpoint found for serviceReference: {}, process: {}", serviceReference, processId);
                 return null;
             }
         } catch (Exception e) {
@@ -83,21 +92,43 @@ public class SMPService {
     }
     
     /**
+     * Queries the ServiceGroup resource to acquire the exact serviceReference for the requested document type
+     *
+     * Returns the serviceReference (document type ID) as published in the SMP, which ensures proper
+     * encoding of special characters like ## that might be present in the document type identifier.
+     */
+    private String getServiceReferenceFromServiceGroup(String smpEndpoint, String participantId, String documentTypeId) {
+        String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
+
+        logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
+
+        try {
+            String response = executeHttpGet(serviceGroupUrl);
+            logger.debug("ServiceGroup resource retrieved successfully");
+
+            // Parse XML and acquire the exact serviceReference for the document type
+            return extractServiceReferenceFromServiceGroup(response, documentTypeId);
+        } catch (Exception e) {
+            logger.warn("Failed to retrieve ServiceGroup resource: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Checks if a document type is supported by querying the ServiceGroup resource
      */
-    private boolean isDocumentTypeSupported(String smpEndpoint, String participantId, String documentTypeId) 
-            throws IOException {
-        String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/participants/" + 
-            urlEncode(participantId);
+    @Deprecated(forRemoval = true)
+    private boolean isDocumentTypeSupported(String smpEndpoint, String participantId, String documentTypeId) {
+        String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
         
         logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
         
         try {
             String response = executeHttpGet(serviceGroupUrl);
-            // For now, assume document type is supported if we get a 200 response
-            // A complete implementation would parse the XML and check for the specific document type
             logger.debug("ServiceGroup resource retrieved successfully");
-            return true;
+
+            // Parse XML and check if document type is supported
+            return isDocumentTypeSupportedInServiceGroup(response, documentTypeId);
         } catch (Exception e) {
             logger.warn("Failed to retrieve ServiceGroup resource: {}", e.getMessage());
             return false;
@@ -105,25 +136,20 @@ public class SMPService {
     }
     
     /**
-     * Queries the ServiceMetadata resource to get the endpoint for a specific document type and process
+     * Queries the ServiceMetadata resource to get the endpoint for a specific serviceReference and process
      */
-    private String queryServiceEndpoint(String smpEndpoint, String participantId, 
-                                        String documentTypeId, String processId) throws IOException {
-        String serviceMetadataUrl = smpEndpoint.replaceAll("/+$", "") + "/services/" + 
-            urlEncode(documentTypeId) + "/processes/" + urlEncode(processId) + "/endpoints";
-        
+    private String queryServiceEndpoint(String smpEndpoint, String participantId, String serviceReference, String processId) {
+        String serviceMetadataUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId) + "/services/" +
+            urlEncode(serviceReference);
+
         logger.debug("Querying ServiceMetadata resource: {}", serviceMetadataUrl);
         
         try {
             String response = executeHttpGet(serviceMetadataUrl);
-            // Parse endpoint from response XML
-            // This is a simplified implementation - a complete one would parse the XML properly
             logger.debug("ServiceMetadata resource retrieved successfully");
-            
-            // For now, return a placeholder - actual implementation would extract from XML
-            // Expected structure: <Endpoint transport="https">https://example.com/as4</Endpoint>
-            String endpoint = extractEndpointFromXML(response);
-            return endpoint;
+
+            // Parse endpoint from response XML
+            return extractEndpointFromXML(response);
         } catch (Exception e) {
             logger.warn("Failed to retrieve ServiceMetadata resource: {}", e.getMessage());
             return null;
@@ -182,22 +208,76 @@ public class SMPService {
     /**
      * Extracts the endpoint URL from SMP ServiceMetadata XML response
      * 
-     * Simplified implementation - should be enhanced to properly parse XML
+     * XML Structure:
+     * <b2sm:ServiceMetadata xmlns:b2sm="http://docs.oasis-open.org/bdxr/ns/SMP/2/ServiceMetadata"
+     *                       xmlns:sma="http://docs.oasis-open.org/bdxr/ns/SMP/2/AggregateComponents"
+     *                       xmlns:smb="http://docs.oasis-open.org/bdxr/ns/SMP/2/BasicComponents">
+     *   <sma:ProcessMetadata>
+     *     <sma:Process>
+     *       <smb:ID>bdx:noprocess</smb:ID>
+     *     </sma:Process>
+     *     <sma:Endpoint>
+     *       <smb:AddressURI>https://example.com/as4</smb:AddressURI>
+     *     </sma:Endpoint>
+     *   </sma:ProcessMetadata>
+     * </b2sm:ServiceMetadata>
      */
     private String extractEndpointFromXML(String xml) {
         if (xml == null) return null;
         
-        // Look for https endpoint first (DBNA requires HTTPS)
-        int start = xml.indexOf("\"https://");
-        if (start > -1) {
-            int end = xml.indexOf("\"", start + 1);
-            if (end > start) {
-                return xml.substring(start + 1, end);
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            DocumentBuilder builder = factory.newDocumentBuilder();
+
+            Document doc = builder.parse(new InputSource(new StringReader(xml)));
+
+            // Get all Endpoint elements from AggregateComponents namespace
+            // Using namespace: http://docs.oasis-open.org/bdxr/ns/SMP/2/AggregateComponents
+            NodeList endpoints = doc.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/AggregateComponents", "Endpoint");
+
+            logger.debug("Found {} Endpoint elements in ServiceMetadata", endpoints.getLength());
+
+            // Extract endpoint URLs from each Endpoint element
+            for (int i = 0; i < endpoints.getLength(); i++) {
+                Element endpoint = (Element) endpoints.item(i);
+
+                // Get the AddressURI element within Endpoint
+                // Using namespace: http://docs.oasis-open.org/bdxr/ns/SMP/2/BasicComponents
+                NodeList addressUris = endpoint.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/BasicComponents", "AddressURI");
+
+                if (addressUris.getLength() > 0) {
+                    String url = addressUris.item(0).getTextContent();
+                    logger.debug("Found endpoint URL: {}", url);
+
+                    if (url != null && !url.trim().isEmpty()) {
+                        // DBNA requires HTTPS endpoints
+                        if (url.startsWith("https://")) {
+                            logger.info("Found HTTPS endpoint: {}", url);
+                            return url;
+                        }
+                    }
+                }
             }
+
+            // Fallback: if no HTTPS endpoint found, return the first endpoint (not recommended but handle gracefully)
+            if (endpoints.getLength() > 0) {
+                Element endpoint = (Element) endpoints.item(0);
+                NodeList addressUris = endpoint.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/BasicComponents", "AddressURI");
+                if (addressUris.getLength() > 0) {
+                    String url = addressUris.item(0).getTextContent();
+                    logger.warn("No HTTPS endpoint found, using: {}", url);
+                    return url;
+                }
+            }
+
+            logger.warn("Could not extract any endpoint from ServiceMetadata response");
+            return null;
+
+        } catch (Exception e) {
+            logger.error("Failed to parse ServiceMetadata XML: {}", e.getMessage(), e);
+            return null;
         }
-        
-        logger.warn("Could not extract HTTPS endpoint from ServiceMetadata response");
-        return null;
     }
     
     /**
@@ -212,6 +292,78 @@ public class SMPService {
         }
     }
     
+    /**
+     * Extracts the serviceReference from ServiceGroup XML for the requested document type
+     *
+     * The serviceReference is the exact document type ID as published in the SMP, which ensures
+     * all special characters (including ##) are properly preserved and formatted.
+     *
+     * @return the serviceReference matching the documentTypeId, or null if not found
+     */
+    private String extractServiceReferenceFromServiceGroup(String xml, String documentTypeId) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            DocumentBuilder builder = factory.newDocumentBuilder();
+
+            Document doc = builder.parse(new InputSource(new StringReader(xml)));
+
+            // Get all ServiceReference elements
+            // Using namespace: http://docs.oasis-open.org/bdxr/ns/SMP/2/AggregateComponents
+            NodeList serviceReferences = doc.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/AggregateComponents", "ServiceReference");
+
+            logger.debug("Found {} ServiceReference elements in ServiceGroup", serviceReferences.getLength());
+
+            // Check each ServiceReference for matching document type ID
+            for (int i = 0; i < serviceReferences.getLength(); i++) {
+                Element serviceRef = (Element) serviceReferences.item(i);
+
+                // Get the ID element within ServiceReference
+                // Using namespace: http://docs.oasis-open.org/bdxr/ns/SMP/2/BasicComponents
+                NodeList idElements = serviceRef.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/BasicComponents", "ID");
+
+                if (idElements.getLength() > 0) {
+                    Element idElement = (Element) idElements.item(0);
+                    String supportedDocType = idElement.getTextContent();
+                    String schemeID = idElement.getAttribute("schemeID");
+
+                    logger.debug("Found supported document type: {} (schemeID: {})", supportedDocType, schemeID);
+
+                    // Check if this matches the requested document type
+                    if (supportedDocType != null && supportedDocType.equals(documentTypeId)) {
+                        // Return the serviceReference as schemeID::documentTypeId
+                        String serviceReference = schemeID != null && !schemeID.isEmpty()
+                            ? schemeID + "::" + supportedDocType
+                            : supportedDocType;
+                        logger.info("Found matching serviceReference for document type {}: {}", documentTypeId, serviceReference);
+                        return serviceReference;
+                    }
+                }
+            }
+
+            logger.warn("Document type {} is not in the list of supported document types", documentTypeId);
+            return null;
+
+        } catch (Exception e) {
+            logger.error("Failed to parse ServiceGroup XML: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Parses ServiceGroup XML and checks if the specified document type is supported
+     *
+     * XML Structure:
+     * <b2sg:ServiceGroup>
+     *   <sma:ServiceReference>
+     *     <smb:ID schemeID="bdx-docid-qns">urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##DBNAlliance-1.0-data-Core</smb:ID>
+     *   </sma:ServiceReference>
+     * </b2sg:ServiceGroup>
+     */
+    private boolean isDocumentTypeSupportedInServiceGroup(String xml, String documentTypeId) {
+        return extractServiceReferenceFromServiceGroup(xml, documentTypeId) != null;
+    }
+
     /**
      * Clears expired cache entries
      */

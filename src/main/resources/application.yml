@@ -1,3 +1,4 @@
+# Truststore configuration removed - keystore only
 spring:
   application:
     name: dbna-outbound
@@ -5,7 +6,7 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}  # Default to dev profile
 
 server:
-  port: 8080
+  port: 3310
 
 # Storage Configuration
 storage:
@@ -18,12 +19,27 @@ dbna:
   to-party-role: ${DBNA_TO_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}
   service-type: ${DBNA_SERVICE_TYPE:}
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
-  action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
   receiver:
-    endpoint-url: ${DBNA_RECEIVER_ENDPOINT_URL:http://localhost:8080/api/as4}
+    url: ${DBNA_RECEIVER_URL:}
   retry:
     max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
-    delay-ms: ${DBNA_RETRY_DELAY_MS:1000}
+    delay: ${DBNA_RETRY_DELAY:1000}
+    timeout: ${DBNA_RETRY_TIMEOUT:30000}  # Timeout in milliseconds for AS4 message sending (default: 30 seconds)
+  sml:
+    url: ${DBNA_SML_URL:sml.dbnalliance.net}
+    dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
+  smp:
+    url: ${DBNA_SMP_URL:}
+
+# Sirius Configuration
+sirius:
+  url: ${SIRIUS_URL:}
+  username: ${SIRIUS_USERNAME:}
+  password: ${SIRIUS_PASSWORD:}
+  timeout: ${SIRIUS_TIMEOUT:180000}  # Timeout in milliseconds for Sirius HTTP operations (default: 3 minutes)
+  size-limit: ${SIRIUS_SIZE_LIMIT:5242880}  # Maximum file size in bytes (5MB default)
+  retry-count: ${SIRIUS_RETRY_COUNT:8}  # Number of retries on connection failure
+  retry-delay: ${SIRIUS_RETRY_DELAY:900000}  # Delay between retries in milliseconds
 
 # AS4 Configuration with X.509 Certificate Support
 # Note: Profile-specific configurations override these defaults
@@ -35,12 +51,8 @@ as4:
     password: ${KEYSTORE_PASSWORD:changeit}
     type: ${KEYSTORE_TYPE:JKS}
   key:
-    alias: ${KEY_ALIAS:dbna}
-    password: ${KEY_PASSWORD:changeit}
-  truststore:
-    path: ${TRUSTSTORE_PATH:truststore.jks}
-    password: ${TRUSTSTORE_PASSWORD:changeit}
-    type: ${TRUSTSTORE_TYPE:JKS}
+    alias: ${KEYSTORE_KEY_ALIAS:dbna}
+    password: ${KEYSTORE_KEY_PASSWORD:changeit}
   ssl:
     enabled: ${SSL_ENABLED:true}
     verify-hostname: ${SSL_VERIFY_HOSTNAME:true}
@@ -64,15 +76,15 @@ management:
     readinessState:
       enabled: true
   server:
-    port: 8080
+    port: 3310
 
 # Logging
 logging:
   level:
-    com.opuscapita.dbna: INFO
+    com.opuscapita.dbna: DEBUG
     com.helger.phase4: INFO
     org.springframework.web: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 

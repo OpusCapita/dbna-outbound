@@ -16,4 +16,8 @@ public interface SendService {
         return 100000;
     }
 
+    default long getTimeoutMs() {
+        return 30000;  // Default 30 seconds
+    }
+
 }

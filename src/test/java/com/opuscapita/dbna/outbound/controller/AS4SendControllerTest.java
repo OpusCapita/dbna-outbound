@@ -45,6 +45,9 @@ class AS4SendControllerTest {
     @Mock
     private CertificateValidationService certificateValidationService;
 
+    @Mock
+    private com.opuscapita.dbna.outbound.service.UBLDocumentService ublDocumentService;
+
     private AS4SendController controller;
 
     private String testDocumentContent;
@@ -52,7 +55,7 @@ class AS4SendControllerTest {
     @BeforeEach
     void setUp() throws Exception {
         // Use constructor injection instead of reflection
-        controller = new AS4SendController(as4SendService, smlLookupService, smpService, certificateValidationService);
+        controller = new AS4SendController(as4SendService, smlLookupService, smpService, certificateValidationService, ublDocumentService);
 
         // Load test document
         testDocumentContent = TestResourceLoader.loadTestInvoice();
@@ -488,18 +491,10 @@ class AS4SendControllerTest {
         assertTrue(capturedRequest.isEncryptMessage(), "Message encryption must be enabled");
         assertEquals("https://dbnalliance.org/agreements/access_point.html", capturedRequest.getAgreementRef());
     }
-
-    @Test
-    @DisplayName("Health check endpoint should return OK")
-    void testHealthCheckEndpoint() {
-        // Act
-        ResponseEntity<String> response = controller.health();
-
-        // Assert
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals("AS4 Outbound Service is running", response.getBody());
-    }
 }
+
+
+
 
 
 

@@ -6,7 +6,7 @@ spring:
     name: dbna-outbound
 
 server:
-  port: 8080
+  port: 3310
 
 # DBNA Network Configuration - Development
 dbna:
@@ -15,7 +15,17 @@ dbna:
   to-party-role: ${DBNA_TO_PARTY_ROLE:http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder}
   service-type: ${DBNA_SERVICE_TYPE:}
   service: ${DBNA_SERVICE:http://dbna.opuscapita.com/services}
-  action: ${DBNA_ACTION:http://dbna.opuscapita.com/sendDocument}
+  receiver:
+    url: ${DBNA_RECEIVER_URL:https://localhost:3210/messages}  # Ensure this points to the correct AS4 endpoint
+  retry:
+    max-attempts: ${DBNA_RETRY_MAX_ATTEMPTS:3}
+    delay: ${DBNA_RETRY_DELAY:1000}
+    timeout: ${DBNA_RETRY_TIMEOUT:10000}  # Timeout in milliseconds for AS4 sending (default: 10 seconds)
+  sml:
+    url: ${DBNA_SML_URL:sml.dbnalliance.com}
+    dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
+  smp:
+    url: ${DBNA_SMP_URL:https://smp.dbnalliance.com/bdxr-smp-2}
 
 # AS4 Configuration - Development Mode (Using test-keystore.p12 from classpath)
 as4:
@@ -24,12 +34,8 @@ as4:
     password: ${KEYSTORE_PASSWORD:testpassword}
     type: ${KEYSTORE_TYPE:PKCS12}
   key:
-    alias: ${KEY_ALIAS:testcert}
-    password: ${KEY_PASSWORD:testpassword}
-  truststore:
-    path: ${TRUSTSTORE_PATH:dev-truststore.jks}
-    password: ${TRUSTSTORE_PASSWORD:changeit}
-    type: ${TRUSTSTORE_TYPE:JKS}
+    alias: ${KEYSTORE_KEY_ALIAS:testcert}
+    password: ${KEYSTORE_KEY_PASSWORD:testpassword}
   ssl:
     enabled: false  # SSL disabled for development
     verify-hostname: false  # Hostname verification disabled for development

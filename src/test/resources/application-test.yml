@@ -14,9 +14,8 @@ dbna:
   to-party-role: http://test/responder
   service-type: ""
   service: http://test/service
-  action: http://test/action
   receiver:
-    endpoint-url: http://localhost:8080/api/as4-test
+    endpoint-url: http://localhost:3310/api/as4-test
   retry:
     max-attempts: 2
     delay-ms: 100
@@ -30,10 +29,6 @@ as4:
   key:
     alias: test
     password: testpass
-  truststore:
-    path: test-truststore.jks
-    password: testpass
-    type: JKS
   ssl:
     enabled: false
     verify-hostname: false
@@ -61,4 +56,7 @@ logging:
   level:
     com.opuscapita.dbna: DEBUG
     org.springframework: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
