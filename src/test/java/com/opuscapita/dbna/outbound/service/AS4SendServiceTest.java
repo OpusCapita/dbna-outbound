@@ -6,6 +6,7 @@ import com.opuscapita.dbna.outbound.exception.DocumentValidationException;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
 import com.opuscapita.dbna.outbound.model.AS4TransmissionResponse;
+import com.opuscapita.dbna.outbound.model.SMPServiceInfo;
 import com.opuscapita.dbna.outbound.model.TransmissionResponse;
 import com.opuscapita.dbna.outbound.test.TestResourceLoader;
 import com.opuscapita.dbna.common.container.ContainerMessage;
@@ -518,7 +519,7 @@ class AS4SendServiceTest {
         when(smlLookupService.lookupSMPEndpoint("GLN", "1234567890"))
             .thenReturn("https://smp.example.com/");
         when(smpService.discoverServiceEndpoint("https://smp.example.com/", "GLN::1234567890", "Invoice", "Billing"))
-            .thenReturn("https://receiver.example.com/as4");
+            .thenReturn(new SMPServiceInfo("https://receiver.example.com/as4", null));
 
         // Act
         as4SendService.send(containerMessage);
@@ -549,7 +550,7 @@ class AS4SendServiceTest {
         ReflectionTestUtils.setField(as4SendService, "smpUrl", "https://configured-smp.example.com/");
 
         when(smpService.discoverServiceEndpoint("https://configured-smp.example.com/", "GLN::1234567890", "Invoice", "Billing"))
-            .thenReturn("https://receiver.example.com/as4");
+            .thenReturn(new SMPServiceInfo("https://receiver.example.com/as4", null));
 
         // Act
         as4SendService.send(containerMessage);

@@ -1,5 +1,6 @@
 package com.opuscapita.dbna.outbound.service;
 
+import com.opuscapita.dbna.outbound.model.SMPServiceInfo;
 import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
@@ -17,6 +18,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -49,15 +51,17 @@ public class SMPService {
     
     /**
      * Discovers service endpoints for a given document type and process
-     * 
+     * According to DBNA SMP Profile v1.0, also extracts the receiver's certificate
+     * for certificate pinning validation.
+     *
      * @param smpEndpoint The base URL of the SMP service
      * @param participantId The participant identifier (scheme::id)
      * @param documentTypeId The document type identifier
      * @param processId The process identifier
-     * @return The service endpoint URL for sending, or null if not found
+     * @return SMPServiceInfo with endpoint URL and certificate (if available), or null if not found
      * @throws Exception if service discovery fails
      */
-    public String discoverServiceEndpoint(String smpEndpoint, String participantId, 
+    public SMPServiceInfo discoverServiceEndpoint(String smpEndpoint, String participantId,
                                           String documentTypeId, String processId) throws Exception {
         if (smpEndpoint == null || smpEndpoint.trim().isEmpty()) {
             throw new IllegalArgumentException("SMP endpoint is required");
@@ -75,12 +79,21 @@ public class SMPService {
             }
             logger.debug("Acquired serviceReference from ServiceGroup: {}", serviceReference);
 
-            // Step 2: Query ServiceMetadata using the serviceReference to get endpoint information
-            String endpoint = queryServiceEndpoint(smpEndpoint, participantId, serviceReference, processId);
+            // Step 2: Query ServiceMetadata using the serviceReference to get endpoint information and certificate
+            String serviceMetadataXml = queryServiceMetadataXML(smpEndpoint, participantId, serviceReference, processId);
+            if (serviceMetadataXml == null) {
+                logger.warn("No service metadata found for serviceReference: {}, process: {}", serviceReference, processId);
+                return null;
+            }
+
+            String endpoint = extractEndpointFromXML(serviceMetadataXml);
+            X509Certificate receiverCert = extractCertificateFromXML(serviceMetadataXml);
 
             if (endpoint != null) {
-                logger.info("Successfully discovered service endpoint: {}", endpoint);
-                return endpoint;
+                SMPServiceInfo serviceInfo = new SMPServiceInfo(endpoint, receiverCert);
+                logger.info("Successfully discovered service endpoint: {} with certificate available: {}",
+                    endpoint, (receiverCert != null));
+                return serviceInfo;
             } else {
                 logger.warn("No service endpoint found for serviceReference: {}, process: {}", serviceReference, processId);
                 return null;
@@ -135,27 +148,47 @@ public class SMPService {
         }
     }
     
-    /**
-     * Queries the ServiceMetadata resource to get the endpoint for a specific serviceReference and process
-     */
+     /**
+      * Queries the ServiceMetadata resource to get the XML response for a specific serviceReference and process
+      * The XML contains both endpoint URL and certificate information
+      */
+     private String queryServiceMetadataXML(String smpEndpoint, String participantId, String serviceReference, String processId) {
+         String serviceMetadataUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId) + "/services/" +
+             urlEncode(serviceReference);
+
+         logger.debug("Querying ServiceMetadata resource: {}", serviceMetadataUrl);
+
+         try {
+             String response = executeHttpGet(serviceMetadataUrl);
+             logger.debug("ServiceMetadata resource retrieved successfully");
+             return response;
+         } catch (Exception e) {
+             logger.warn("Failed to retrieve ServiceMetadata resource: {}", e.getMessage());
+             return null;
+         }
+     }
+
+     /**
+      * Queries the ServiceMetadata resource to get the endpoint for a specific serviceReference and process
+      */
     private String queryServiceEndpoint(String smpEndpoint, String participantId, String serviceReference, String processId) {
-        String serviceMetadataUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId) + "/services/" +
-            urlEncode(serviceReference);
+         String serviceMetadataUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId) + "/services/" +
+             urlEncode(serviceReference);
 
-        logger.debug("Querying ServiceMetadata resource: {}", serviceMetadataUrl);
-        
-        try {
-            String response = executeHttpGet(serviceMetadataUrl);
-            logger.debug("ServiceMetadata resource retrieved successfully");
+         logger.debug("Querying ServiceMetadata resource: {}", serviceMetadataUrl);
 
-            // Parse endpoint from response XML
-            return extractEndpointFromXML(response);
-        } catch (Exception e) {
-            logger.warn("Failed to retrieve ServiceMetadata resource: {}", e.getMessage());
-            return null;
-        }
-    }
-    
+         try {
+             String response = executeHttpGet(serviceMetadataUrl);
+             logger.debug("ServiceMetadata resource retrieved successfully");
+
+             // Parse endpoint from response XML
+             return extractEndpointFromXML(response);
+         } catch (Exception e) {
+             logger.warn("Failed to retrieve ServiceMetadata resource: {}", e.getMessage());
+             return null;
+         }
+     }
+
     /**
      * Executes an HTTP GET request with caching support
      */
@@ -206,21 +239,78 @@ public class SMPService {
     }
     
     /**
+     * Extracts the receiver's X.509 certificate from SMP ServiceMetadata XML response
+     * According to DBNA SMP Profile v1.0, the Certificate element contains the receiver's key
+     * which is used by us (the sender) for:
+     * 1. Validating the receiver's endpoint legitimacy
+     * 2. Encrypting the AS4 message
+     *
+     * The receiver will NOT use this certificate - they will use OUR certificate (obtained from SMP)
+     * to validate our message signature.
+     *
+     * XML Structure example:
+     * <sma:Endpoint>
+     *   <smb:AddressURI>https://example.com/as4</smb:AddressURI>
+     *   <sma:Certificate>
+     *     <smb:TypeCode>bdxr-as4-signing-encryption</smb:TypeCode>
+     *     <smb:ActivationDate>2021-09-01Z</smb:ActivationDate>
+     *     <smb:ExpirationDate>2023-08-31Z</smb:ExpirationDate>
+     *     <smb:ContentBinaryObject mimeCode="application/base64">BASE64ENCODEDCERT</smb:ContentBinaryObject>
+     *   </sma:Certificate>
+     * </sma:Endpoint>
+     *
+     * @param xml The ServiceMetadata XML response
+     * @return The X509Certificate if found, null otherwise
+     */
+    private X509Certificate extractCertificateFromXML(String xml) {
+        if (xml == null) return null;
+
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            DocumentBuilder builder = factory.newDocumentBuilder();
+
+            Document doc = builder.parse(new InputSource(new StringReader(xml)));
+
+            // Try to find X509Certificate in the Signature namespace
+            // According to DBNA spec, certs are in dsig namespace: http://www.w3.org/2000/09/xmldsig#
+            NodeList certElements = doc.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "X509Certificate");
+
+            if (certElements.getLength() > 0) {
+                String certBase64 = certElements.item(0).getTextContent();
+                if (certBase64 != null && !certBase64.trim().isEmpty()) {
+                    try {
+                        byte[] decodedCert = java.util.Base64.getDecoder().decode(certBase64.trim());
+                        java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
+                        X509Certificate cert = (X509Certificate) cf.generateCertificate(
+                            new java.io.ByteArrayInputStream(decodedCert)
+                        );
+                        logger.info("Successfully extracted X.509 certificate from SMP: Subject={}, Issuer={}",
+                            cert.getSubjectX500Principal(), cert.getIssuerX500Principal());
+                        return cert;
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse X509Certificate from SMP response: {}", e.getMessage());
+                        return null;
+                    }
+                }
+            }
+
+            logger.debug("No X509Certificate found in ServiceMetadata XML");
+            return null;
+
+        } catch (Exception e) {
+            logger.warn("Failed to extract certificate from ServiceMetadata XML: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Extracts the endpoint URL from SMP ServiceMetadata XML response
-     * 
-     * XML Structure:
-     * <b2sm:ServiceMetadata xmlns:b2sm="http://docs.oasis-open.org/bdxr/ns/SMP/2/ServiceMetadata"
-     *                       xmlns:sma="http://docs.oasis-open.org/bdxr/ns/SMP/2/AggregateComponents"
-     *                       xmlns:smb="http://docs.oasis-open.org/bdxr/ns/SMP/2/BasicComponents">
-     *   <sma:ProcessMetadata>
-     *     <sma:Process>
-     *       <smb:ID>bdx:noprocess</smb:ID>
-     *     </sma:Process>
-     *     <sma:Endpoint>
-     *       <smb:AddressURI>https://example.com/as4</smb:AddressURI>
-     *     </sma:Endpoint>
-     *   </sma:ProcessMetadata>
-     * </b2sm:ServiceMetadata>
+     *
+     * According to DBNA SMP Profile v1.0, the AddressURI contains the receiver's endpoint.
+     *
+     * XML Structure: ServiceMetadata contains ProcessMetadata with Endpoint elements,
+     * each containing an AddressURI with the endpoint URL.
      */
     private String extractEndpointFromXML(String xml) {
         if (xml == null) return null;

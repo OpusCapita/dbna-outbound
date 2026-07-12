@@ -21,8 +21,13 @@ import java.util.List;
  * - Hostname verification
  * - DBNA-specific certificate policy validation
  *
- * Note: Certificate verification is handled at the protocol level through keystore configuration.
- * No separate truststore is required for certificate validation.
+ * According to DBNA SMP Profile v1.0 and AS4 Profile v1.0:
+ * 1. SENDER queries SMP → gets RECEIVER's certificate → validates & uses for encryption
+ * 2. SENDER signs message with SENDER's certificate
+ * 3. RECEIVER gets signed+encrypted message from SENDER
+ * 4. RECEIVER queries SMP → gets SENDER's certificate → validates signature
+ *
+ * This service validates the receiver's certificate before we use it for encryption.
  */
 @Service
 public class CertificateValidationService {

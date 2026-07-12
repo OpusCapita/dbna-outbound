@@ -26,7 +26,7 @@ import java.io.FileInputStream;
 import java.security.KeyStore;
 /**
  * Configuration for AS4 protocol with X.509 certificate support
- * Note: Truststore support has been removed. Certificate verification is handled at the protocol level.
+ * Supports both keystore (client authentication) and truststore (server certificate validation)
  */
 @Configuration
 @Getter
@@ -42,6 +42,12 @@ public class AS4Configuration {
     private String keyAlias;
     @Value("${as4.key.password:changeit}")
     private String keyPassword;
+    @Value("${as4.truststore.path:#{null}}")
+    private String truststorePath;
+    @Value("${as4.truststore.password:changeit}")
+    private String truststorePassword;
+    @Value("${as4.truststore.type:JKS}")
+    private String truststoreType;
     @Value("${as4.ssl.enabled:true}")
     private boolean sslEnabled;
     @Value("${as4.ssl.verify-hostname:true}")
@@ -97,14 +103,38 @@ public class AS4Configuration {
                 logger.info("Keystore loaded for SSL client authentication");
             }
             
+            // Load truststore for server certificate validation
+            KeyStore trustStore = null;
+            if (truststorePath != null && !truststorePath.isEmpty()) {
+                trustStore = loadKeyStoreFromResource(truststorePath, truststorePassword, truststoreType);
+                if (trustStore != null) {
+                    logger.info("Truststore loaded for SSL server certificate validation");
+                } else {
+                    logger.warn("Truststore file specified but could not be loaded from: {}", truststorePath);
+                }
+            } else {
+                logger.debug("No truststore path configured. Using default Java truststore for server certificate validation.");
+            }
+            
             SSLContextBuilder sslContextBuilder = new SSLContextBuilder();
             sslContextBuilder.setProtocol(sslProtocol);
+            
             if (keyStore != null) {
                 // Try to load key material with the configured key password
                 if (!loadKeyMaterialWithPasswordFallback(sslContextBuilder, keyStore)) {
                     logger.warn("Could not load key material with any available password. Proceeding without client certificate.");
                 }
             }
+            
+            // Load trust material from truststore or use system default
+            if (trustStore != null) {
+                sslContextBuilder.loadTrustMaterial(trustStore, null);
+                logger.info("SSL configured with custom truststore");
+            } else {
+                sslContextBuilder.loadTrustMaterial(null, (chain, authType) -> true);
+                logger.warn("SSL configured without truststore validation - accepting all certificates (not recommended for production!)");
+            }
+            
             SSLContext sslContext = sslContextBuilder.build();
             SSLConnectionSocketFactory sslSocketFactory;
             if (verifyHostname) {

@@ -13,6 +13,7 @@ import com.opuscapita.dbna.outbound.model.AS4TransmissionResponse;
 import com.opuscapita.dbna.outbound.model.DummyResponse;
 import com.opuscapita.dbna.common.container.ContainerMessage;
 import com.opuscapita.dbna.outbound.model.TransmissionResponse;
+import com.opuscapita.dbna.outbound.model.SMPServiceInfo;
 import com.opuscapita.dbna.common.storage.Storage;
 import lombok.Getter;
 import org.apache.commons.io.IOUtils;
@@ -209,17 +210,25 @@ public class AS4SendService implements SendService {
             logger.info("Resolved SMP endpoint from SML: {}", activeSmpUrl);
         }
 
-        // Step 3: Query SMP for the receiver endpoint URL
+        // Step 3: Query SMP for the receiver endpoint URL and certificate
         logger.info("Querying SMP for receiver endpoint - DocumentType: {}, ProcessId: {}", documentTypeId, processId);
-        String receiverEndpointUrl = smpService.discoverServiceEndpoint(activeSmpUrl, receiverId, documentTypeId, processId);
+        SMPServiceInfo serviceInfo = smpService.discoverServiceEndpoint(activeSmpUrl, receiverId, documentTypeId, processId);
 
+        if (serviceInfo == null) {
+            throw new IllegalStateException(
+                String.format("Failed to discover receiver endpoint from SMP for documentType: %s, process: %s",
+                    documentTypeId, processId));
+        }
+
+        String receiverEndpointUrl = serviceInfo.getEndpointUrl();
         if (!isValidString(receiverEndpointUrl)) {
             throw new IllegalStateException(
                 String.format("Failed to discover receiver endpoint from SMP for documentType: %s, process: %s",
                     documentTypeId, processId));
         }
 
-        logger.info("Successfully resolved receiver endpoint from SMP: {}", receiverEndpointUrl);
+        logger.info("Successfully resolved receiver endpoint from SMP: {} (certificate available: {})",
+            receiverEndpointUrl, serviceInfo.hasCertificateInfo());
         return receiverEndpointUrl;
     }
 

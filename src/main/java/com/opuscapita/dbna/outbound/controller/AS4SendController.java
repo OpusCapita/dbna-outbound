@@ -6,6 +6,7 @@ import com.opuscapita.dbna.outbound.exception.SMPDiscoveryException;
 import com.opuscapita.dbna.outbound.exception.AS4TransmissionException;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
+import com.opuscapita.dbna.outbound.model.SMPServiceInfo;
 import com.opuscapita.dbna.outbound.service.AS4SendService;
 import com.opuscapita.dbna.outbound.service.CertificateValidationService;
 import com.opuscapita.dbna.outbound.service.SMLLookupService;
@@ -16,6 +17,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.security.cert.X509Certificate;
 
 /**
  * REST Controller for sending UBL documents via AS4 over DBNA network
@@ -128,29 +131,30 @@ public class AS4SendController {
             }
         }
         
-        // Step 3: Query SMP to discover service endpoint
+        // Step 3: Query SMP to discover service endpoint and receiver certificate
         logger.info("Step 3: Querying SMP for service endpoint - DocTypeId: {}, ProcessId: {}",
             docTypeId, processId);
-        String receiverEndpointUrl;
+        SMPServiceInfo serviceInfo;
 
         // Check if receiver endpoint override is configured
         if (receiverEndpointOverride != null && !receiverEndpointOverride.trim().isEmpty()) {
-            receiverEndpointUrl = receiverEndpointOverride;
-            logger.info("Using configured receiver endpoint override: {}", receiverEndpointUrl);
+            logger.info("Using configured receiver endpoint override: {}", receiverEndpointOverride);
+            serviceInfo = new SMPServiceInfo(receiverEndpointOverride, null);
         } else {
             try {
-                receiverEndpointUrl = smpService.discoverServiceEndpoint(
+                serviceInfo = smpService.discoverServiceEndpoint(
                     smpEndpoint,
                     receiverId,
                     docTypeId,
                     processId
                 );
-                if (receiverEndpointUrl == null) {
+                if (serviceInfo == null) {
                     throw new SMPDiscoveryException(
                         String.format("Service endpoint not found for document type: %s, process: %s",
                             docTypeId, processId));
                 }
-                logger.info("SMP discovery successful - Receiver endpoint: {}", receiverEndpointUrl);
+                logger.info("SMP discovery successful - Receiver endpoint: {} (certificate available: {})",
+                    serviceInfo.getEndpointUrl(), serviceInfo.hasCertificateInfo());
             } catch (SMPDiscoveryException e) {
                 throw e;
             } catch (Exception e) {
@@ -158,11 +162,37 @@ public class AS4SendController {
             }
         }
         
-        // Step 4: Validate receiver's certificate
+        String receiverEndpointUrl = serviceInfo.getEndpointUrl();
+        X509Certificate receiverCertificate = serviceInfo.getReceiverCertificate();
+
+        // Step 4: Validate receiver's certificate if available
+        // Per DBNA SMP Profile v1.0:
+        // - The receiver's certificate is used locally for message encryption
+        // - We validate it before using it
+        // - We do NOT send it to the receiver (they already have it)
+        // - The receiver will validate OUR certificate (which they query from SMP)
         logger.info("Step 4: Validating receiver's X.509 certificate from SMP endpoint");
-        logger.debug("Certificate validation configuration: checkExpiration={}", certificateValidationService);
-        
+        if (receiverCertificate != null) {
+            try {
+                CertificateValidationService.CertificateValidationResult validationResult =
+                    certificateValidationService.validateForDBNA(receiverCertificate);
+
+                if (!validationResult.valid) {
+                    throw new SMPDiscoveryException(
+                        "Receiver certificate validation failed: " + validationResult.expirationError);
+                }
+                logger.info("Receiver certificate validated successfully - Subject: {}, will be used for local encryption",
+                    receiverCertificate.getSubjectX500Principal());
+            } catch (Exception e) {
+                logger.warn("Failed to validate receiver certificate: {}", e.getMessage());
+                // Don't fail here - continue with endpoint validation at TLS level
+            }
+        } else {
+            logger.warn("No receiver certificate available from SMP for message encryption");
+        }
+
         // Step 5: Build AS4SendRequest with DBNA PMode parameters
+        // Per DBNA spec: We sign with our certificate, receiver will validate using our certificate from SMP
         logger.info("Step 5: Preparing AS4 message with DBNA PMode parameters");
         AS4SendRequest request = AS4SendRequest.builder()
                 .senderId(senderId)

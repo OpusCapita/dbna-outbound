@@ -7,6 +7,10 @@ import lombok.NoArgsConstructor;
 
 /**
  * Request model for sending AS4 messages
+ * Per DBNA spec:
+ * - We use receiver's certificate (from SMP) for local encryption only
+ * - We sign with our certificate
+ * - Receiver validates our signature using our certificate from SMP
  */
 @Data
 @Builder
