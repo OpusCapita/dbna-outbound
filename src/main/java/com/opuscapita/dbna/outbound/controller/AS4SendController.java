@@ -191,21 +191,22 @@ public class AS4SendController {
             logger.warn("No receiver certificate available from SMP for message encryption");
         }
 
-        // Step 5: Build AS4SendRequest with DBNA PMode parameters
-        // Per DBNA spec: We sign with our certificate, receiver will validate using our certificate from SMP
-        logger.info("Step 5: Preparing AS4 message with DBNA PMode parameters");
-        AS4SendRequest request = AS4SendRequest.builder()
-                .senderId(senderId)
-                .receiverId(receiverId)
-                .documentType(docTypeId)
-                .processId(processId)
-                .ublDocumentContent(documentContent)
-                .receiverEndpointUrl(receiverEndpointUrl)
-                .signMessage(true)  // PMode[1].Security - Message signing is mandatory for DBNA
-                .encryptMessage(true)  // PMode[1].Security.X509.Encryption.Encrypt = True
-                .agreementRef("https://dbnalliance.org/agreements/access_point.html")  // PMode.Agreement
-                .build();
-        
+         // Step 5: Build AS4SendRequest with DBNA PMode parameters
+         // Per DBNA spec: We sign with our certificate, receiver will validate using our certificate from SMP
+         logger.info("Step 5: Preparing AS4 message with DBNA PMode parameters");
+         AS4SendRequest request = AS4SendRequest.builder()
+                 .senderId(senderId)
+                 .receiverId(receiverId)
+                 .documentType(docTypeId)
+                 .processId(processId)
+                 .ublDocumentContent(documentContent)
+                 .receiverEndpointUrl(receiverEndpointUrl)
+                 .receiverCertificate(receiverCertificate)  // Include receiver certificate from SMP for truststore injection
+                 .signMessage(true)  // PMode[1].Security - Message signing is mandatory for DBNA
+                 .encryptMessage(true)  // PMode[1].Security.X509.Encryption.Encrypt = True
+                 .agreementRef("https://dbnalliance.org/agreements/access_point.html")  // PMode.Agreement
+                 .build();
+
         // Step 6: Send document via AS4
         logger.info("Step 6: Sending UBL document via AS4 protocol to DBNA network");
         try {
