@@ -253,39 +253,92 @@ public class AS4Configuration {
 
     /**
      * Resolve keystore path to absolute file path for Phase4's WSS4J
-     * Tries filesystem first, then classpath resources
+     * Tries filesystem first, then classpath resources (with fallback to temp file extraction for JAR resources)
      */
     private String resolveKeystorePath(String path) {
+         try {
+             // Strip 'classpath:' prefix if present
+             String normalizedPath = path;
+             if (normalizedPath.startsWith("classpath:")) {
+                 normalizedPath = normalizedPath.substring("classpath:".length());
+                 logger.debug("Stripped 'classpath:' prefix from path: {} -> {}", path, normalizedPath);
+             }
+
+             // Try direct file system path
+             File file = new File(normalizedPath);
+             if (file.exists() && file.isFile()) {
+                 logger.debug("Found keystore at filesystem path: {}", file.getAbsolutePath());
+                 return file.getAbsolutePath();
+             }
+
+             // Try classpath root
+             Resource resource = new ClassPathResource(normalizedPath);
+             if (resource.exists()) {
+                 try {
+                     String absolutePath = resource.getFile().getAbsolutePath();
+                     logger.debug("Found keystore at classpath path: {}", absolutePath);
+                     return absolutePath;
+                 } catch (Exception e) {
+                     // Classpath resource is inside a JAR - extract to temp location
+                     logger.debug("Classpath resource is inside JAR, extracting to temp location: {}", e.getMessage());
+                     return extractKeystoreFromClasspath(resource, normalizedPath);
+                 }
+             }
+
+             // Try keystores/ classpath subdirectory
+             if (!normalizedPath.startsWith("keystores/")) {
+                 resource = new ClassPathResource("keystores/" + normalizedPath);
+                 if (resource.exists()) {
+                     try {
+                         String absolutePath = resource.getFile().getAbsolutePath();
+                         logger.debug("Found keystore at classpath/keystores path: {}", absolutePath);
+                         return absolutePath;
+                     } catch (Exception e) {
+                         // Classpath resource is inside a JAR - extract to temp location
+                         logger.debug("Classpath resource is inside JAR, extracting to temp location: {}", e.getMessage());
+                         return extractKeystoreFromClasspath(resource, "keystores/" + normalizedPath);
+                     }
+                 }
+             }
+
+             logger.warn("Could not resolve keystore path: {}", path);
+             return null;
+         } catch (Exception e) {
+             logger.error("Error resolving keystore path: {}", path, e);
+             return null;
+         }
+    }
+
+    /**
+     * Extract a classpath resource (keystore file) to a temporary location
+     * This is necessary when the keystore is packaged inside a JAR and Phase4/WSS4J needs filesystem access
+     */
+    private String extractKeystoreFromClasspath(Resource resource, String resourcePath) {
         try {
-            // Try direct file system path
-            File file = new File(path);
-            if (file.exists() && file.isFile()) {
-                logger.debug("Found keystore at filesystem path: {}", file.getAbsolutePath());
-                return file.getAbsolutePath();
+            // Create a temp file with a meaningful name
+            String filename = resourcePath.substring(resourcePath.lastIndexOf('/') + 1);
+            File tempDir = new File(System.getProperty("java.io.tmpdir"), "dbna-as4-keystores");
+            if (!tempDir.exists()) {
+                tempDir.mkdirs();
+                logger.debug("Created temporary keystore directory: {}", tempDir.getAbsolutePath());
             }
 
-            // Try classpath root
-            Resource resource = new ClassPathResource(path);
-            if (resource.exists()) {
-                String absolutePath = resource.getFile().getAbsolutePath();
-                logger.debug("Found keystore at classpath path: {}", absolutePath);
-                return absolutePath;
-            }
+            File tempFile = new File(tempDir, filename);
 
-            // Try keystores/ classpath subdirectory
-            if (!path.startsWith("keystores/")) {
-                resource = new ClassPathResource("keystores/" + path);
-                if (resource.exists()) {
-                    String absolutePath = resource.getFile().getAbsolutePath();
-                    logger.debug("Found keystore at classpath/keystores path: {}", absolutePath);
-                    return absolutePath;
+            // Extract the resource to the temp file
+            try (var inputStream = resource.getInputStream();
+                 var outputStream = new java.io.FileOutputStream(tempFile)) {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
                 }
             }
 
-            logger.warn("Could not resolve keystore path: {}", path);
-            return null;
+            logger.info("Extracted keystore from classpath to temporary location: {}", tempFile.getAbsolutePath());
+            return tempFile.getAbsolutePath();
         } catch (Exception e) {
-            logger.error("Error resolving keystore path: {}", path, e);
+            logger.error("Error extracting keystore from classpath: {}", e.getMessage(), e);
             return null;
         }
     }
@@ -294,81 +347,93 @@ public class AS4Configuration {
      * Load a keystore from file system or classpath
      */
     private KeyStore loadKeyStoreFromResource(String path, String password, String type) {
-        try {
-            // Normalize keystore type based on file extension
-            String normalizedType = type;
-            if (path.toLowerCase().endsWith(".p12") || path.toLowerCase().endsWith(".pfx")) {
-                normalizedType = "PKCS12";
-            } else if ("P12".equalsIgnoreCase(type)) {
-                // Also handle explicit P12 type configuration
-                normalizedType = "PKCS12";
-            }
-            KeyStore keyStore = KeyStore.getInstance(normalizedType);
+         try {
+             // Strip 'classpath:' prefix if present
+             String normalizedPath = path;
+             if (normalizedPath.startsWith("classpath:")) {
+                 normalizedPath = normalizedPath.substring("classpath:".length());
+             }
 
-            // Try file system first
-            File file = new File(path);
-            if (file.exists()) {
-                try (FileInputStream fis = new FileInputStream(file)) {
-                    keyStore.load(fis, password.toCharArray());
-                    return keyStore;
-                }
-            }
-            
-            // Try classpath
-            Resource resource = new ClassPathResource(path);
-            if (resource.exists()) {
-                keyStore.load(resource.getInputStream(), password.toCharArray());
-                return keyStore;
-            }
-            
-            // Try classpath with keystores/ prefix
-            if (!path.startsWith("keystores/")) {
-                resource = new ClassPathResource("keystores/" + path);
-                if (resource.exists()) {
-                    keyStore.load(resource.getInputStream(), password.toCharArray());
-                    return keyStore;
-                }
-            }
-            
-            logger.warn("Keystore not found at: {}", path);
-            return null;
-        } catch (Exception e) {
-            logger.error("Error loading keystore from: {}", path, e);
-            return null;
-        }
+             // Normalize keystore type based on file extension
+             String normalizedType = type;
+             if (normalizedPath.toLowerCase().endsWith(".p12") || normalizedPath.toLowerCase().endsWith(".pfx")) {
+                 normalizedType = "PKCS12";
+             } else if ("P12".equalsIgnoreCase(type)) {
+                 // Also handle explicit P12 type configuration
+                 normalizedType = "PKCS12";
+             }
+             KeyStore keyStore = KeyStore.getInstance(normalizedType);
+
+             // Try file system first
+             File file = new File(normalizedPath);
+             if (file.exists()) {
+                 try (FileInputStream fis = new FileInputStream(file)) {
+                     keyStore.load(fis, password.toCharArray());
+                     return keyStore;
+                 }
+             }
+
+             // Try classpath
+             Resource resource = new ClassPathResource(normalizedPath);
+             if (resource.exists()) {
+                 keyStore.load(resource.getInputStream(), password.toCharArray());
+                 return keyStore;
+             }
+
+             // Try classpath with keystores/ prefix
+             if (!normalizedPath.startsWith("keystores/")) {
+                 resource = new ClassPathResource("keystores/" + normalizedPath);
+                 if (resource.exists()) {
+                     keyStore.load(resource.getInputStream(), password.toCharArray());
+                     return keyStore;
+                 }
+             }
+
+             logger.warn("Keystore not found at: {}", path);
+             return null;
+         } catch (Exception e) {
+             logger.error("Error loading keystore from: {}", path, e);
+             return null;
+         }
     }
     
     /**
      * Check if a resource exists in file system or classpath
      */
     private boolean resourceExists(String path) {
-        if (path == null || path.isEmpty()) {
-            return false;
-        }
-        
-        // Check file system first
-        File file = new File(path);
-        if (file.exists()) {
-            return true;
-        }
-        
-        // Check classpath
-        try {
-            Resource resource = new ClassPathResource(path);
-            if (resource.exists()) {
-                return true;
-            }
-            
-            // Try with keystores/ prefix
-            if (!path.startsWith("keystores/")) {
-                resource = new ClassPathResource("keystores/" + path);
-                return resource.exists();
-            }
-        } catch (Exception e) {
-            logger.debug("Error checking classpath resource: {}", path, e);
-        }
-        
-        return false;
+         if (path == null || path.isEmpty()) {
+             return false;
+         }
+
+         // Strip 'classpath:' prefix if present
+         String normalizedPath = path;
+         if (normalizedPath.startsWith("classpath:")) {
+             normalizedPath = normalizedPath.substring("classpath:".length());
+         }
+
+         // Check file system first
+         File file = new File(normalizedPath);
+         if (file.exists()) {
+             return true;
+         }
+
+         // Check classpath
+         try {
+             Resource resource = new ClassPathResource(normalizedPath);
+             if (resource.exists()) {
+                 return true;
+             }
+
+             // Try with keystores/ prefix
+             if (!normalizedPath.startsWith("keystores/")) {
+                 resource = new ClassPathResource("keystores/" + normalizedPath);
+                 return resource.exists();
+             }
+         } catch (Exception e) {
+             logger.debug("Error checking classpath resource: {}", normalizedPath, e);
+         }
+
+         return false;
     }
     
     public boolean isKeystoreConfigured() {
