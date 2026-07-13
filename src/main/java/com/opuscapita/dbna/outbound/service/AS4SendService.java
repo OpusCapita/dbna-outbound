@@ -27,6 +27,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.X509Certificate;
 import java.time.Instant;
 /**
  * Service for sending UBL 2.3 documents via AS4 protocol to DBNA network with X.509 certificate support
@@ -63,6 +64,7 @@ public class AS4SendService implements SendService {
     private final AS4Configuration as4Configuration;
     private final SMLLookupService smlLookupService;
     private final SMPService smpService;
+    private final TruststoreManager truststoreManager;
 
     // DBNA Network Configuration - injected via @Value
     @Value("${dbna.from-party-id:${spring.application.name:dbna-outbound}}")
@@ -101,13 +103,15 @@ public class AS4SendService implements SendService {
             IAS4CryptoFactory as4CryptoFactory,
             AS4Configuration as4Configuration,
             SMLLookupService smlLookupService,
-            SMPService smpService) {
+            SMPService smpService,
+            TruststoreManager truststoreManager) {
         this.storage = storage;
         this.ublDocumentService = ublDocumentService;
         this.as4CryptoFactory = as4CryptoFactory;
         this.as4Configuration = as4Configuration;
         this.smlLookupService = smlLookupService;
         this.smpService = smpService;
+        this.truststoreManager = truststoreManager;
     }
     
     /**
@@ -136,8 +140,8 @@ public class AS4SendService implements SendService {
             ublContent = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
         }
         
-        // Determine receiver endpoint URL
-        String receiverEndpointUrl = resolveReceiverEndpointUrl(
+        // Determine receiver endpoint URL and certificate
+        SMPServiceInfo serviceInfo = resolveReceiverServiceInfo(
             cm.getMetadata().getRecipientId(),
             cm.getMetadata().getDocumentTypeIdentifier(),
             cm.getMetadata().getProfileTypeIdentifier()
@@ -146,7 +150,7 @@ public class AS4SendService implements SendService {
         // Extract metadata from ContainerMessage to build AS4SendRequest
         AS4SendRequest request = AS4SendRequest.builder()
             .ublDocumentContent(ublContent)
-            .receiverEndpointUrl(receiverEndpointUrl)
+            .receiverEndpointUrl(serviceInfo.getEndpointUrl())
             .senderId(cm.getMetadata().getSenderId())
             .receiverId(cm.getMetadata().getRecipientId())
             .conversationId(cm.getMetadata().getMessageId())
@@ -154,6 +158,7 @@ public class AS4SendService implements SendService {
             .processId(cm.getMetadata().getProfileTypeIdentifier())
             .signMessage(true)  // Always sign AS4 messages for DBNA
             .encryptMessage(false)  // Configure as needed
+            .receiverCertificate(serviceInfo.getReceiverCertificate())  // Add receiver certificate for truststore injection
             .build();
         
         logger.info("Sending AS4 message for file: {} to endpoint: {}", 
@@ -177,22 +182,25 @@ public class AS4SendService implements SendService {
     }
     
     /**
-     * Resolves the receiver endpoint URL by checking override first, then querying SMP if needed
+     * Resolves the receiver service information (endpoint + certificate) by checking override first, then querying SMP if needed
+     * This method retrieves both the endpoint URL and the receiver's certificate from SMP
+     * The certificate will be injected into the truststore before sending.
      *
      * @param receiverId Receiver party identifier (scheme::id)
      * @param documentTypeId Document type identifier
      * @param processId Business process identifier
-     * @return The receiver endpoint URL
+     * @return SMPServiceInfo with endpoint URL and certificate
      * @throws Exception if endpoint resolution fails
      */
-    private String resolveReceiverEndpointUrl(String receiverId, String documentTypeId, String processId) throws Exception {
-        // Step 1: If override is set, use it
+    private SMPServiceInfo resolveReceiverServiceInfo(String receiverId, String documentTypeId, String processId) throws Exception {
+        // Step 1: If override is set, use it without SMP lookup
         if (isValidString(receiverEndpointOverride)) {
             logger.info("Using configured receiver endpoint override: {}", receiverEndpointOverride);
-            return receiverEndpointOverride;
+            // Create SMPServiceInfo with endpoint only (no certificate available from override)
+            return new SMPServiceInfo(receiverEndpointOverride, null);
         }
 
-        logger.info("No receiver endpoint override configured, querying SMP for endpoint");
+        logger.info("No receiver endpoint override configured, querying SMP for endpoint and certificate");
 
         // Step 2: Get SMP endpoint
         String activeSmpUrl = smpUrl;
@@ -211,7 +219,7 @@ public class AS4SendService implements SendService {
         }
 
         // Step 3: Query SMP for the receiver endpoint URL and certificate
-        logger.info("Querying SMP for receiver endpoint - DocumentType: {}, ProcessId: {}", documentTypeId, processId);
+        logger.info("Querying SMP for receiver endpoint and certificate - DocumentType: {}, ProcessId: {}", documentTypeId, processId);
         SMPServiceInfo serviceInfo = smpService.discoverServiceEndpoint(activeSmpUrl, receiverId, documentTypeId, processId);
 
         if (serviceInfo == null) {
@@ -227,9 +235,32 @@ public class AS4SendService implements SendService {
                     documentTypeId, processId));
         }
 
-        logger.info("Successfully resolved receiver endpoint from SMP: {} (certificate available: {})",
+        logger.info("Successfully resolved receiver service info from SMP: endpoint={}, certificate available: {}",
             receiverEndpointUrl, serviceInfo.hasCertificateInfo());
-        return receiverEndpointUrl;
+
+        // Inject receiver certificate into truststore if available
+        if (serviceInfo.hasCertificateInfo()) {
+            logger.info("Injecting receiver certificate into truststore before AS4 transmission");
+            truststoreManager.addReceiverCertificate(serviceInfo.getReceiverCertificate());
+        } else {
+            logger.warn("No receiver certificate found in SMP response. AS4 transmission may fail if server uses self-signed certificate.");
+        }
+
+        return serviceInfo;
+    }
+
+    /**
+     * Resolves the receiver endpoint URL by checking override first, then querying SMP if needed
+     * This is the original method kept for backward compatibility
+     *
+     * @param receiverId Receiver party identifier (scheme::id)
+     * @param documentTypeId Document type identifier
+     * @param processId Business process identifier
+     * @return The receiver endpoint URL
+     * @throws Exception if endpoint resolution fails
+     */
+    private String resolveReceiverEndpointUrl(String receiverId, String documentTypeId, String processId) throws Exception {
+        return resolveReceiverServiceInfo(receiverId, documentTypeId, processId).getEndpointUrl();
     }
 
     /**
@@ -305,6 +336,14 @@ public class AS4SendService implements SendService {
                     .errorMessage("Invalid UBL 2.3 document format: " + e.getMessage())
                     .build();
             }
+
+            // Inject receiver certificate into truststore if available
+            // This ensures Phase4/PKIX validation succeeds for the receiver's endpoint
+            if (request.getReceiverCertificate() != null) {
+                logger.debug("Injecting receiver certificate into truststore for PKIX validation");
+                truststoreManager.addReceiverCertificate(request.getReceiverCertificate());
+            }
+
             // Parse UBL XML to DOM Element
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);

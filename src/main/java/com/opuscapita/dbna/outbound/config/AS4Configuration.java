@@ -4,6 +4,7 @@ import com.helger.phase4.crypto.AS4CryptoProperties;
 import com.helger.phase4.crypto.IAS4CryptoFactory;
 import com.helger.security.keystore.EKeyStoreType;
 import com.helger.scope.mgr.ScopeManager;
+import com.opuscapita.dbna.outbound.service.TruststoreManager;
 import lombok.Getter;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
@@ -13,17 +14,20 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import javax.net.ssl.SSLContext;
 import java.io.File;
 import java.io.FileInputStream;
 import java.security.KeyStore;
+import java.util.Arrays;
 /**
  * Configuration for AS4 protocol with X.509 certificate support
  * Supports both keystore (client authentication) and truststore (server certificate validation)
@@ -42,8 +46,6 @@ public class AS4Configuration {
     private String keyAlias;
     @Value("${as4.key.password:changeit}")
     private String keyPassword;
-    @Value("${as4.truststore.path:#{null}}")
-    private String truststorePath;
     @Value("${as4.truststore.password:changeit}")
     private String truststorePassword;
     @Value("${as4.truststore.type:JKS}")
@@ -54,6 +56,15 @@ public class AS4Configuration {
     private boolean verifyHostname;
     @Value("${as4.ssl.protocol:TLS}")
     private String sslProtocol;
+
+    private final TruststoreManager truststoreManager;
+    private final Environment environment;
+
+    @Autowired
+    public AS4Configuration(TruststoreManager truststoreManager, Environment environment) {
+        this.truststoreManager = truststoreManager;
+        this.environment = environment;
+    }
     @Bean
     public IAS4CryptoFactory as4CryptoFactory() {
         logger.info("Initializing AS4 crypto factory with X.509 certificate support");
@@ -103,17 +114,18 @@ public class AS4Configuration {
                 logger.info("Keystore loaded for SSL client authentication");
             }
             
-            // Load truststore for server certificate validation
+            // Load truststore from TruststoreManager (which handles dynamic cert injection)
+            logger.debug("Retrieving truststore from TruststoreManager...");
             KeyStore trustStore = null;
-            if (truststorePath != null && !truststorePath.isEmpty()) {
-                trustStore = loadKeyStoreFromResource(truststorePath, truststorePassword, truststoreType);
+            try {
+                trustStore = truststoreManager.getTruststore();
                 if (trustStore != null) {
-                    logger.info("Truststore loaded for SSL server certificate validation");
+                    logger.info("✓ Truststore loaded from TruststoreManager for SSL server certificate validation");
                 } else {
-                    logger.warn("Truststore file specified but could not be loaded from: {}", truststorePath);
+                    logger.warn("✗ Truststore is null - this is unexpected");
                 }
-            } else {
-                logger.debug("No truststore path configured. Using default Java truststore for server certificate validation.");
+            } catch (Exception e) {
+                logger.error("✗ Failed to get truststore from TruststoreManager: {}", e.getMessage(), e);
             }
             
             SSLContextBuilder sslContextBuilder = new SSLContextBuilder();
@@ -129,10 +141,16 @@ public class AS4Configuration {
             // Load trust material from truststore or use system default
             if (trustStore != null) {
                 sslContextBuilder.loadTrustMaterial(trustStore, null);
-                logger.info("SSL configured with custom truststore");
+                logger.info("✓ SSL configured with truststore for certificate validation");
             } else {
-                sslContextBuilder.loadTrustMaterial(null, (chain, authType) -> true);
-                logger.warn("SSL configured without truststore validation - accepting all certificates (not recommended for production!)");
+                // No truststore available - use permissive trust for development
+                logger.warn("⚠ Truststore is null/unavailable - configuring permissive SSL as fallback");
+                sslContextBuilder.loadTrustMaterial(null, (chain, authType) -> {
+                    logger.debug("Accepting certificate in fallback mode: {}",
+                        chain != null && chain.length > 0 ? chain[0].getSubjectX500Principal() : "unknown");
+                    return true;
+                });
+                logger.warn("SSL configured without truststore validation - accepting all certificates (FALLBACK MODE)");
             }
             
             SSLContext sslContext = sslContextBuilder.build();
@@ -152,7 +170,7 @@ public class AS4Configuration {
                 )
                 .build();
         } catch (Exception e) {
-            logger.error("Failed to configure secure HTTP client. Falling back to default client.", e);
+            logger.error("✗ Failed to configure secure HTTP client. Falling back to default client.", e);
             return HttpClients.createDefault();
         }
     }
@@ -361,6 +379,8 @@ public class AS4Configuration {
      * Initialize Phase4 global scope on application startup.
      * This is required by Phase4's MetaAS4Manager which expects a global scope to be available.
      * The global scope is a thread-local scope that Phase4 uses for accessing configuration and state.
+     *
+     * Also configures SSL context for development environments with self-signed certificates.
      */
     @EventListener(ApplicationReadyEvent.class)
     public void initializePhase4GlobalScope() {
@@ -370,10 +390,15 @@ public class AS4Configuration {
             logger.info("Initializing Phase4 global scope for MetaAS4Manager");
             ScopeManager.onGlobalBegin("Phase4-Global");
             logger.info("Phase4 global scope initialized successfully");
+
+            // Configure SSL context for Phase4 in development
+            // Phase4 uses its own HTTP client and doesn't respect our secureHttpClient bean
+            configurePhase4SSLContextForDevelopment();
         } catch (IllegalStateException e) {
             // Global scope might already be active - this is expected on subsequent calls
             if (e.getMessage() != null && e.getMessage().contains("already been begin")) {
                 logger.debug("Phase4 global scope is already active");
+                configurePhase4SSLContextForDevelopment();
             } else {
                 logger.error("Failed to initialize Phase4 global scope. AS4 messaging may fail.", e);
             }
@@ -381,6 +406,77 @@ public class AS4Configuration {
             logger.error("Failed to initialize Phase4 global scope. AS4 messaging may fail.", e);
             // Don't throw exception as it might cause application startup failure
             // The error will be visible in logs and caught when AS4 operations are attempted
+        }
+    }
+
+    /**
+     * Configure Phase4's SSL context for both development and production.
+     *
+     * In DEVELOPMENT: Uses permissive TrustManager to accept self-signed certificates at localhost.
+     * In PRODUCTION: Configures SSL context with the managed truststore that receives injected
+     *                receiver certificates from SMP queries, enabling proper PKIX validation.
+     *
+     * Phase4 uses its own HTTP client and doesn't respect our secureHttpClient bean,
+     * so we must configure the global SSL context that Phase4 will use.
+     */
+    private void configurePhase4SSLContextForDevelopment() {
+        try {
+            // Check Spring's active profiles to determine environment
+            String[] activeProfiles = environment.getActiveProfiles();
+            boolean isDevelopment = activeProfiles.length == 0 || !Arrays.asList(activeProfiles).contains("prod");
+
+            logger.debug("Active Spring profiles: {}, Development mode: {}",
+                Arrays.toString(activeProfiles), isDevelopment);
+
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            
+            if (isDevelopment) {
+                logger.info("⚙️ Development mode: Configuring Phase4 SSL context with permissive TrustManager for self-signed certificates");
+                
+                // Create a permissive TrustManager for development
+                javax.net.ssl.TrustManager[] trustAllCerts = new javax.net.ssl.TrustManager[]{
+                    new javax.net.ssl.X509TrustManager() {
+                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                            return null;
+                        }
+                        public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                            // Accept all client certificates
+                        }
+                        public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                            logger.debug("Accepting server certificate in development mode: {}",
+                                certs != null && certs.length > 0 ? certs[0].getSubjectX500Principal() : "unknown");
+                        }
+                    }
+                };
+                sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+                logger.warn("⚠️ Phase4 SSL context configured with permissive TrustManager (DEVELOPMENT MODE)");
+            } else {
+                logger.info("⚙️ Production mode: Configuring Phase4 SSL context with managed truststore for dynamic certificate injection");
+                
+                // Get the managed truststore that receives injected receiver certificates
+                KeyStore trustStore = truststoreManager.getTruststore();
+                if (trustStore == null) {
+                    logger.error("✗ Truststore is null in production mode - this is critical");
+                    throw new RuntimeException("Truststore unavailable in production mode");
+                }
+                
+                // Create SSL context with the managed truststore
+                javax.net.ssl.TrustManagerFactory tmf = javax.net.ssl.TrustManagerFactory.getInstance(
+                    javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(trustStore);
+                
+                sslContext.init(null, tmf.getTrustManagers(), new java.security.SecureRandom());
+                logger.info("✓ Phase4 SSL context configured with managed truststore (receiver certificates will be injected from SMP)");
+            }
+            
+            // Set as the global default SSL context for ALL TLS operations in this JVM
+            // This ensures Phase4's HTTP client will use this SSL context
+            SSLContext.setDefault(sslContext);
+            logger.info("✓ Global SSL context set as default for JVM (Phase4 will use this)");
+            
+        } catch (Exception e) {
+            logger.error("✗ Failed to configure Phase4 SSL context: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to configure SSL context for Phase4: " + e.getMessage(), e);
         }
     }
 }

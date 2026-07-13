@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.security.cert.X509Certificate;
 
 /**
  * Request model for sending AS4 messages
@@ -31,5 +32,8 @@ public class AS4SendRequest {
     private String agreementRef;
     private boolean signMessage;
     private boolean encryptMessage;
+
+    // Receiver certificate from SMP (for truststore injection)
+    private X509Certificate receiverCertificate;
 }
 
