@@ -56,6 +56,9 @@ class AS4SendServiceTest {
     private SMPService smpService;
 
     @Mock
+    private TruststoreManager truststoreManager;
+
+    @Mock
     private ContainerMessage containerMessage;
 
     @Mock
@@ -68,7 +71,7 @@ class AS4SendServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         // Create a real instance first
-        AS4SendService realService = new AS4SendService(storage, ublDocumentService, as4CryptoFactory, as4Configuration, smlLookupService, smpService);
+        AS4SendService realService = new AS4SendService(storage, ublDocumentService, as4CryptoFactory, as4Configuration, smlLookupService, smpService, truststoreManager);
 
         // Create a spy so we can mock sendAS4Message while keeping other methods real
         as4SendService = spy(realService);
