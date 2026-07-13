@@ -136,30 +136,30 @@ public class AS4SendController {
             docTypeId, processId);
         SMPServiceInfo serviceInfo;
 
+        try {
+            serviceInfo = smpService.discoverServiceEndpoint(
+                smpEndpoint,
+                receiverId,
+                docTypeId,
+                processId
+            );
+            if (serviceInfo == null) {
+                throw new SMPDiscoveryException(
+                    String.format("Service endpoint not found for document type: %s, process: %s",
+                        docTypeId, processId));
+            }
+            logger.info("SMP discovery successful - Receiver endpoint: {} (certificate available: {})",
+                serviceInfo.getEndpointUrl(), serviceInfo.hasCertificateInfo());
+        } catch (SMPDiscoveryException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SMPDiscoveryException("Failed to discover service endpoint: " + e.getMessage(), e);
+        }
+
         // Check if receiver endpoint override is configured
         if (receiverEndpointOverride != null && !receiverEndpointOverride.trim().isEmpty()) {
             logger.info("Using configured receiver endpoint override: {}", receiverEndpointOverride);
-            serviceInfo = new SMPServiceInfo(receiverEndpointOverride, null);
-        } else {
-            try {
-                serviceInfo = smpService.discoverServiceEndpoint(
-                    smpEndpoint,
-                    receiverId,
-                    docTypeId,
-                    processId
-                );
-                if (serviceInfo == null) {
-                    throw new SMPDiscoveryException(
-                        String.format("Service endpoint not found for document type: %s, process: %s",
-                            docTypeId, processId));
-                }
-                logger.info("SMP discovery successful - Receiver endpoint: {} (certificate available: {})",
-                    serviceInfo.getEndpointUrl(), serviceInfo.hasCertificateInfo());
-            } catch (SMPDiscoveryException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new SMPDiscoveryException("Failed to discover service endpoint: " + e.getMessage(), e);
-            }
+            serviceInfo.setEndpointUrl(receiverEndpointOverride);
         }
         
         String receiverEndpointUrl = serviceInfo.getEndpointUrl();

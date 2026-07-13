@@ -1,6 +1,7 @@
 package com.opuscapita.dbna.outbound.model;
 
 import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 
 import java.security.cert.X509Certificate;
@@ -22,7 +23,9 @@ import java.util.Objects;
 @Getter
 @ToString
 public class SMPServiceInfo {
-    private final String endpointUrl;
+
+    @Setter
+    private String endpointUrl;
     private final X509Certificate receiverCertificate;
 
     public SMPServiceInfo(String endpointUrl, X509Certificate receiverCertificate) {

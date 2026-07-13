@@ -67,6 +67,9 @@ public class SMPService {
             throw new IllegalArgumentException("SMP endpoint is required");
         }
 
+        // Ensure SMP endpoint has a proper scheme (DBNA requires HTTPS)
+        smpEndpoint = ensureUrlScheme(smpEndpoint);
+
         logger.info("Discovering service endpoint from SMP: {}", smpEndpoint);
         logger.debug("Participant: {}, DocumentType: {}, Process: {}", participantId, documentTypeId, processId);
         
@@ -238,71 +241,87 @@ public class SMPService {
         }
     }
     
-    /**
-     * Extracts the receiver's X.509 certificate from SMP ServiceMetadata XML response
-     * According to DBNA SMP Profile v1.0, the Certificate element contains the receiver's key
-     * which is used by us (the sender) for:
-     * 1. Validating the receiver's endpoint legitimacy
-     * 2. Encrypting the AS4 message
-     *
-     * The receiver will NOT use this certificate - they will use OUR certificate (obtained from SMP)
-     * to validate our message signature.
-     *
-     * XML Structure example:
-     * <sma:Endpoint>
-     *   <smb:AddressURI>https://example.com/as4</smb:AddressURI>
-     *   <sma:Certificate>
-     *     <smb:TypeCode>bdxr-as4-signing-encryption</smb:TypeCode>
-     *     <smb:ActivationDate>2021-09-01Z</smb:ActivationDate>
-     *     <smb:ExpirationDate>2023-08-31Z</smb:ExpirationDate>
-     *     <smb:ContentBinaryObject mimeCode="application/base64">BASE64ENCODEDCERT</smb:ContentBinaryObject>
-     *   </sma:Certificate>
-     * </sma:Endpoint>
-     *
-     * @param xml The ServiceMetadata XML response
-     * @return The X509Certificate if found, null otherwise
-     */
-    private X509Certificate extractCertificateFromXML(String xml) {
-        if (xml == null) return null;
+     /**
+      * Extracts the receiver's X.509 certificate from SMP ServiceMetadata XML response
+      * According to DBNA SMP Profile v1.0, the Certificate element within Endpoint contains the receiver's certificate
+      * which is used by us (the sender) for:
+      * 1. Validating the receiver's endpoint legitimacy
+      * 2. Encrypting the AS4 message
+      *
+      * The receiver will NOT use this certificate - they will use OUR certificate (obtained from SMP)
+      * to validate our message signature.
+      *
+      * XML Structure example:
+      * <sma:Endpoint>
+      *   <smb:AddressURI>https://example.com/as4</smb:AddressURI>
+      *   <sma:Certificate>
+      *     <smb:TypeCode>bdxr-as4-signing-encryption</smb:TypeCode>
+      *     <smb:ActivationDate>2021-09-01Z</smb:ActivationDate>
+      *     <smb:ExpirationDate>2023-08-31Z</smb:ExpirationDate>
+      *     <smb:ContentBinaryObject mimeCode="application/base64">BASE64ENCODEDCERT</smb:ContentBinaryObject>
+      *   </sma:Certificate>
+      * </sma:Endpoint>
+      *
+      * @param xml The ServiceMetadata XML response
+      * @return The X509Certificate if found, null otherwise
+      */
+     private X509Certificate extractCertificateFromXML(String xml) {
+         if (xml == null) return null;
 
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(true);
-            DocumentBuilder builder = factory.newDocumentBuilder();
+         try {
+             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+             factory.setNamespaceAware(true);
+             DocumentBuilder builder = factory.newDocumentBuilder();
 
-            Document doc = builder.parse(new InputSource(new StringReader(xml)));
+             Document doc = builder.parse(new InputSource(new StringReader(xml)));
 
-            // Try to find X509Certificate in the Signature namespace
-            // According to DBNA spec, certs are in dsig namespace: http://www.w3.org/2000/09/xmldsig#
-            NodeList certElements = doc.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "X509Certificate");
+             // Find the Endpoint element (in AggregateComponents namespace)
+             NodeList endpoints = doc.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/AggregateComponents", "Endpoint");
+             
+             if (endpoints.getLength() > 0) {
+                 Element endpoint = (Element) endpoints.item(0);
+                 
+                 // Find the Certificate element within Endpoint (in AggregateComponents namespace)
+                 NodeList certificates = endpoint.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/AggregateComponents", "Certificate");
+                 
+                 if (certificates.getLength() > 0) {
+                     Element certificate = (Element) certificates.item(0);
+                     
+                     // Find the ContentBinaryObject element within Certificate (in BasicComponents namespace)
+                     NodeList contentObjects = certificate.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/BasicComponents", "ContentBinaryObject");
+                     
+                      if (contentObjects.getLength() > 0) {
+                          String certBase64 = contentObjects.item(0).getTextContent();
+                          if (certBase64 != null && !certBase64.trim().isEmpty()) {
+                              try {
+                                  // Remove all whitespace (including newlines and spaces) from base64 string
+                                  // XML text content may contain formatting whitespace that needs to be stripped
+                                  String cleanedBase64 = certBase64.replaceAll("\\s+", "");
+                                  byte[] decodedCert = java.util.Base64.getDecoder().decode(cleanedBase64);
+                                 java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
+                                 X509Certificate cert = (X509Certificate) cf.generateCertificate(
+                                     new java.io.ByteArrayInputStream(decodedCert)
+                                 );
+                                 logger.info("Successfully extracted X.509 certificate from SMP Endpoint: Subject={}, Issuer={}",
+                                     cert.getSubjectX500Principal(), cert.getIssuerX500Principal());
+                                 return cert;
+                             } catch (Exception e) {
+                                 logger.warn("Failed to parse X509Certificate from SMP Endpoint: {}", e.getMessage());
+                                 return null;
+                             }
+                         }
+                     }
+                 }
+             }
 
-            if (certElements.getLength() > 0) {
-                String certBase64 = certElements.item(0).getTextContent();
-                if (certBase64 != null && !certBase64.trim().isEmpty()) {
-                    try {
-                        byte[] decodedCert = java.util.Base64.getDecoder().decode(certBase64.trim());
-                        java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
-                        X509Certificate cert = (X509Certificate) cf.generateCertificate(
-                            new java.io.ByteArrayInputStream(decodedCert)
-                        );
-                        logger.info("Successfully extracted X.509 certificate from SMP: Subject={}, Issuer={}",
-                            cert.getSubjectX500Principal(), cert.getIssuerX500Principal());
-                        return cert;
-                    } catch (Exception e) {
-                        logger.warn("Failed to parse X509Certificate from SMP response: {}", e.getMessage());
-                        return null;
-                    }
-                }
-            }
+             logger.debug("No certificate found in SMP ServiceMetadata Endpoint");
+             return null;
 
-            logger.debug("No X509Certificate found in ServiceMetadata XML");
-            return null;
-
-        } catch (Exception e) {
-            logger.warn("Failed to extract certificate from ServiceMetadata XML: {}", e.getMessage());
-            return null;
-        }
-    }
+         } catch (Exception e) {
+             logger.warn("Failed to extract certificate from ServiceMetadata XML: {}", e.getMessage());
+             return null;
+         }
+     }
 
     /**
      * Extracts the endpoint URL from SMP ServiceMetadata XML response
@@ -370,17 +389,39 @@ public class SMPService {
         }
     }
     
-    /**
-     * URL-encodes a string for use in SMP URLs
-     */
-    private String urlEncode(String value) {
-        try {
-            return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8.name());
-        } catch (Exception e) {
-            logger.warn("Failed to URL encode value: {}", value);
-            return value;
-        }
-    }
+     /**
+      * Ensures that the SMP URL has a proper scheme (https://)
+      * If the URL doesn't start with a scheme, prepends https:// (DBNA requires HTTPS)
+      */
+     private String ensureUrlScheme(String url) {
+         if (url == null || url.trim().isEmpty()) {
+             return url;
+         }
+         
+         url = url.trim();
+         
+         // Check if URL already has a scheme
+         if (url.startsWith("http://") || url.startsWith("https://")) {
+             return url;
+         }
+         
+         // No scheme present, prepend https:// (DBNA requires HTTPS)
+         String urlWithScheme = "https://" + url;
+         logger.debug("Added https:// scheme to SMP endpoint URL: {} -> {}", url, urlWithScheme);
+         return urlWithScheme;
+     }
+     
+     /**
+      * URL-encodes a string for use in SMP URLs
+      */
+     private String urlEncode(String value) {
+         try {
+             return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8.name());
+         } catch (Exception e) {
+             logger.warn("Failed to URL encode value: {}", value);
+             return value;
+         }
+     }
     
     /**
      * Extracts the serviceReference from ServiceGroup XML for the requested document type
