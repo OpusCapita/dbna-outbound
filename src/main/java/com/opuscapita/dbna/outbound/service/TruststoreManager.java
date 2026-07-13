@@ -78,16 +78,49 @@ public class TruststoreManager implements InitializingBean {
 
     /**
      * Create an in-memory truststore
-     * No file I/O needed - certificates are injected dynamically from SMP queries
+     * Initializes with system CA certificates, then allows dynamic injection of receiver certificates from SMP
      */
     private void loadInMemoryTruststore() {
         try {
             truststore = KeyStore.getInstance(TRUSTSTORE_TYPE);
             truststore.load(null, TRUSTSTORE_PASSWORD.toCharArray());
-            logger.info("Created in-memory truststore for dynamic receiver certificate injection");
+
+            // Initialize with system CA certificates (default JDK truststore)
+            // This ensures the truststore is not empty and PKIX validation can work
+            try {
+                KeyStore systemTruststore = KeyStore.getInstance(KeyStore.getDefaultType());
+                String javaHome = System.getProperty("java.home");
+                java.io.File trustFile = new java.io.File(
+                    javaHome + "/lib/security/cacerts");
+
+                if (trustFile.exists()) {
+                    try (java.io.FileInputStream fis = new java.io.FileInputStream(trustFile)) {
+                        systemTruststore.load(fis, "changeit".toCharArray());
+
+                        // Copy all system CA certificates to our truststore
+                        java.util.Enumeration<String> aliases = systemTruststore.aliases();
+                        int certCount = 0;
+                        while (aliases.hasMoreElements()) {
+                            String alias = aliases.nextElement();
+                            java.security.cert.Certificate cert = systemTruststore.getCertificate(alias);
+                            if (cert != null) {
+                                truststore.setCertificateEntry(alias, cert);
+                                certCount++;
+                            }
+                        }
+                        logger.info("Initialized in-memory truststore with {} system CA certificates from JDK", certCount);
+                    }
+                } else {
+                    logger.warn("System truststore not found at {}, proceeding with empty truststore", trustFile.getPath());
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to load system CA certificates: {}, truststore may not have trust anchors", e.getMessage());
+            }
+
+            logger.info("✓ Created in-memory truststore for dynamic receiver certificate injection");
             isInitialized = true;
         } catch (Exception e) {
-            logger.error("Failed to initialize in-memory truststore", e);
+            logger.error("✗ Failed to initialize in-memory truststore", e);
             throw new RuntimeException("Failed to initialize in-memory truststore: " + e.getMessage(), e);
         }
     }

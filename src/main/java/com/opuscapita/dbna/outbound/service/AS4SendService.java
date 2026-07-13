@@ -182,27 +182,25 @@ public class AS4SendService implements SendService {
     }
     
     /**
-     * Resolves the receiver service information (endpoint + certificate) by checking override first, then querying SMP if needed
-     * This method retrieves both the endpoint URL and the receiver's certificate from SMP
-     * The certificate will be injected into the truststore before sending.
+     * Resolves the receiver service information (endpoint + certificate) by querying SMP
+     *
+     * If receiver endpoint URL is overridden in config, it will be used instead of the SMP-provided endpoint.
+     * However, SMP is ALWAYS queried to obtain the receiver certificate for validation and encryption.
+     * This ensures certificate pinning even when endpoint URL is overridden.
      *
      * @param receiverId Receiver party identifier (scheme::id)
      * @param documentTypeId Document type identifier
      * @param processId Business process identifier
      * @return SMPServiceInfo with endpoint URL and certificate
-     * @throws Exception if endpoint resolution fails
+     * @throws Exception if SMP query fails
      */
     private SMPServiceInfo resolveReceiverServiceInfo(String receiverId, String documentTypeId, String processId) throws Exception {
-        // Step 1: If override is set, use it without SMP lookup
-        if (isValidString(receiverEndpointOverride)) {
-            logger.info("Using configured receiver endpoint override: {}", receiverEndpointOverride);
-            // Create SMPServiceInfo with endpoint only (no certificate available from override)
-            return new SMPServiceInfo(receiverEndpointOverride, null);
-        }
+        // Always query SMP to get receiver certificate (for validation and encryption)
+        // The SMP query also provides the endpoint URL, which may be overridden by configuration
 
-        logger.info("No receiver endpoint override configured, querying SMP for endpoint and certificate");
+        logger.info("Querying SMP for receiver certificate - DocumentType: {}, ProcessId: {}", documentTypeId, processId);
 
-        // Step 2: Get SMP endpoint
+        // Get SMP endpoint
         String activeSmpUrl = smpUrl;
         if (!isValidString(activeSmpUrl)) {
             // If SMP URL not configured, try to get it from SML
@@ -218,35 +216,50 @@ public class AS4SendService implements SendService {
             logger.info("Resolved SMP endpoint from SML: {}", activeSmpUrl);
         }
 
-        // Step 3: Query SMP for the receiver endpoint URL and certificate
-        logger.info("Querying SMP for receiver endpoint and certificate - DocumentType: {}, ProcessId: {}", documentTypeId, processId);
+        // Query SMP for the receiver certificate (and endpoint if not overridden)
         SMPServiceInfo serviceInfo = smpService.discoverServiceEndpoint(activeSmpUrl, receiverId, documentTypeId, processId);
 
         if (serviceInfo == null) {
             throw new IllegalStateException(
-                String.format("Failed to discover receiver endpoint from SMP for documentType: %s, process: %s",
+                String.format("Failed to discover receiver service info from SMP for documentType: %s, process: %s",
                     documentTypeId, processId));
         }
 
-        String receiverEndpointUrl = serviceInfo.getEndpointUrl();
-        if (!isValidString(receiverEndpointUrl)) {
+        // Use override endpoint if configured, but keep the certificate from SMP
+        String finalEndpointUrl = receiverEndpointOverride;
+        if (!isValidString(finalEndpointUrl)) {
+            finalEndpointUrl = serviceInfo.getEndpointUrl();
+        }
+
+        if (!isValidString(finalEndpointUrl)) {
             throw new IllegalStateException(
-                String.format("Failed to discover receiver endpoint from SMP for documentType: %s, process: %s",
+                String.format("Failed to determine receiver endpoint for documentType: %s, process: %s",
                     documentTypeId, processId));
         }
 
-        logger.info("Successfully resolved receiver service info from SMP: endpoint={}, certificate available: {}",
-            receiverEndpointUrl, serviceInfo.hasCertificateInfo());
+        // If endpoint was overridden, log this
+        if (isValidString(receiverEndpointOverride)) {
+            logger.info("Using configured receiver endpoint override: {} (from SMP: {})",
+                finalEndpointUrl, serviceInfo.getEndpointUrl());
+        } else {
+            logger.info("Using endpoint from SMP: {}", finalEndpointUrl);
+        }
+
+        logger.info("Successfully resolved receiver service info - endpoint: {}, certificate available: {}",
+            finalEndpointUrl, serviceInfo.hasCertificateInfo());
+
+        // Create new SMPServiceInfo with final endpoint URL and SMP certificate
+        SMPServiceInfo finalServiceInfo = new SMPServiceInfo(finalEndpointUrl, serviceInfo.getReceiverCertificate());
 
         // Inject receiver certificate into truststore if available
-        if (serviceInfo.hasCertificateInfo()) {
-            logger.info("Injecting receiver certificate into truststore before AS4 transmission");
-            truststoreManager.addReceiverCertificate(serviceInfo.getReceiverCertificate());
+        if (finalServiceInfo.hasCertificateInfo()) {
+            logger.info("✓ Injecting receiver certificate into truststore for PKIX validation");
+            truststoreManager.addReceiverCertificate(finalServiceInfo.getReceiverCertificate());
         } else {
-            logger.warn("No receiver certificate found in SMP response. AS4 transmission may fail if server uses self-signed certificate.");
+            logger.warn("⚠ No receiver certificate found in SMP response. AS4 transmission may fail for PKIX validation.");
         }
 
-        return serviceInfo;
+        return finalServiceInfo;
     }
 
     /**
