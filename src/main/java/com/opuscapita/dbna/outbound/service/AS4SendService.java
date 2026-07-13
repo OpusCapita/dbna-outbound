@@ -565,46 +565,51 @@ public class AS4SendService implements SendService {
         }
     }
 
-    /**
-     * Create the AS4 builder with all the required parameters from the request.
-     *
-     * The .pmodeID("bdxr-as4-1.0") references the DBNA PMode that is automatically
-     * registered by Phase4 when phase4-profile-dbnalliance is on the classpath.
-     */
-    private AS4Sender.BuilderUserMessage createAS4Builder(
-            String messageId, String conversationId, String fromParty, String toParty,
-            AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
+     /**
+      * Create the AS4 builder with all the required parameters from the request.
+      *
+      * The .pmodeID("bdxr-as4-1.0") references the DBNA PMode that is automatically
+      * registered by Phase4 when phase4-profile-dbnalliance is on the classpath.
+      */
+     private AS4Sender.BuilderUserMessage createAS4Builder(
+             String messageId, String conversationId, String fromParty, String toParty,
+             AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
 
-        // Build the base builder with all required AS4 parameters
-        // Phase4's BuilderUserMessage requires several mandatory fields to create a valid AS4 message
-        var builder = new AS4Sender.BuilderUserMessage()
-            .cryptoFactory(as4CryptoFactory)
-            // PMode ID - CRITICAL: Phase4 requires a PMode to be set
-            // Using BDXR PMode ID "bdxr-as4-1.0" registered by phase4-profile-dbnalliance
-            // This PMode is automatically discovered by Phase4 at runtime
-            .pmodeID(com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId())
-            // ...existing code...
-            // Message IDs - Required
-            .messageID(messageId)
-            .conversationID(conversationId)
-            // Sender Party - Required
-            .fromPartyID(fromParty)
-            .fromRole(fromPartyRole)
-            // Receiver Party - Required
-            .toPartyID(toParty)
-            .toRole(toPartyRole)
-            // Service - Required for AS4 user message (standard OASIS ebMS service)
-            .service("urn:oasis:names:tc:ebxml-msg:service")
-            // Action - Required for AS4 user message (standard send action)
-            .action("Send")
-            // Agreement reference if provided
-            .agreementRef(request.getAgreementRef())
-            // Endpoint URL - Required (where to send the message)
-            .endpointURL(request.getReceiverEndpointUrl());
+         // Build the base builder with all required AS4 parameters
+         // Phase4's BuilderUserMessage requires several mandatory fields to create a valid AS4 message
+         var builder = new AS4Sender.BuilderUserMessage()
+             .cryptoFactory(as4CryptoFactory)
+             // PMode ID - CRITICAL: Phase4 requires a PMode to be set
+             // Using BDXR PMode ID "bdxr-as4-1.0" registered by phase4-profile-dbnalliance
+             // This PMode is automatically discovered by Phase4 at runtime
+             .pmodeID(com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId())
+             // Message IDs - Required
+             .messageID(messageId)
+             .conversationID(conversationId)
+             // Sender Party - Required
+             .fromPartyID(fromParty)
+             .fromRole(fromPartyRole)
+             // Receiver Party - Required
+             .toPartyID(toParty)
+             .toRole(toPartyRole)
+             // Service - Required for AS4 user message (standard OASIS ebMS service)
+             .service("urn:oasis:names:tc:ebxml-msg:service")
+             // Action - Required for AS4 user message (standard send action)
+             .action("Send")
+             // Agreement reference if provided
+             .agreementRef(request.getAgreementRef())
+             // Endpoint URL - Required (where to send the message)
+             .endpointURL(request.getReceiverEndpointUrl());
 
-        // Payload - will be added by the caller (in sendAS4MessageInternal)
-        return builder;
-    }
+         // NOTE: Encryption certificate is obtained from the PMode configuration
+         // Per DBNA PMode (bdxr-as4-1.0): The receiver certificate is used for encryption
+         // Phase4 automatically extracts the encryption certificate from the PMode parameters
+         // The receiver certificate we injected into the truststore is used for PKIX validation
+         // (ensuring we trust the receiver's endpoint certificate)
+
+         // Payload - will be added by the caller (in sendAS4MessageInternal)
+         return builder;
+     }
 
     /**
      * Helper method to validate that a string is not null or empty.
