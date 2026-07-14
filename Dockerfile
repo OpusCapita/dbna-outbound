@@ -3,6 +3,17 @@
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /build
 COPY . .
+
+# Extract and display build information
+RUN echo "=== DBNA Inbound Build Information ===" && \
+    GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") && \
+    GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown") && \
+    echo "Git Commit: $GIT_COMMIT" && \
+    echo "Git Branch: $GIT_BRANCH" && \
+    APP_VERSION=$(grep -E '^\s*version\s*=' build.gradle.kts | sed 's/.*version\s*=\s*"\([^"]*\)".*/\1/' || echo "unknown") && \
+    echo "Application Version: $APP_VERSION" && \
+    echo "===================================="
+
 RUN ./gradlew bootJar --no-daemon
 
 # Stage 2: Runtime stage (minimal image)

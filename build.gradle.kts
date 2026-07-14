@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.opuscapita.dbna.outbound"
-version = "1.1.0"
+version = "1.1.1"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -141,6 +141,13 @@ tasks.jacocoTestReport {
     
     // Include code coverage for main source only, exclude tests
     classDirectories.setFrom(sourceSets.main.get().output.classesDirs)
+}
+
+// Enable resource filtering to inject version into application.yml
+tasks.processResources {
+    filesMatching("application.yml") {
+        filter(org.apache.tools.ant.filters.ReplaceTokens::class, "tokens" to mapOf("project.version" to project.version.toString()))
+    }
 }
 
 // Ensure test coverage report is generated after tests
