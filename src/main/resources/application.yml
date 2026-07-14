@@ -1,4 +1,3 @@
-# Truststore configuration removed - keystore only
 spring:
   application:
     name: dbna-outbound
@@ -81,10 +80,11 @@ management:
 # Logging
 logging:
   level:
+    root: INFO
     com.opuscapita.dbna: DEBUG
     com.helger.phase4: INFO
     org.springframework.web: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} %logger{36} - %level: %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %logger{36} - %level: %msg%n"
 

@@ -27,7 +27,8 @@ dbna:
   smp:
     url: ${DBNA_SMP_URL:https://smp.dbnalliance.com/bdxr-smp-2} # Setting this overrides SMP URL acquired from SML
 
-# AS4 Configuration - Development Mode (Using test-keystore.p12 from classpath)
+# AS4 Configuration - Development Mode
+# Uses in-memory truststore with certificates dynamically injected from SMP queries
 as4:
   keystore:
     path: ${KEYSTORE_PATH:test-keystore.p12}
@@ -37,8 +38,8 @@ as4:
     alias: ${KEYSTORE_KEY_ALIAS:testcert}
     password: ${KEYSTORE_KEY_PASSWORD:testpassword}
   ssl:
-    enabled: false  # SSL disabled for development
-    verify-hostname: false  # Hostname verification disabled for development
+    enabled: true  # SSL enabled for development (receiver uses HTTPS with self-signed cert)
+    verify-hostname: false  # Hostname verification disabled for development (localhost)
     protocol: ${SSL_PROTOCOL:TLS}
 
 # Logging - More verbose for development
@@ -49,9 +50,6 @@ logging:
     com.helger.commons: INFO
     org.springframework.web: DEBUG
     org.apache.http: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
 # Development-specific settings
 management:

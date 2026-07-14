@@ -30,7 +30,7 @@ dbna:
 # AS4 Configuration - Production Mode (Certificates Required)
 as4:
   keystore:
-    path: ${KEYSTORE_PATH:/etc/dbna/certs/keystore.jks}
+    path: ${KEYSTORE_PATH:/var/certs/keystore.jks}
     password: ${KEYSTORE_PASSWORD:changeit}
     type: ${KEYSTORE_TYPE:JKS}
   key:
@@ -49,9 +49,6 @@ logging:
     com.helger.commons: WARN
     org.springframework.web: INFO
     org.apache.http: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
     name: ${LOG_FILE:/var/log/dbna/dbna-outbound.log}
     max-size: 100MB
