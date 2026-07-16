@@ -212,9 +212,9 @@ public class AS4SendController {
                  .ublDocumentContent(documentContent)
                  .receiverEndpointUrl(receiverEndpointUrl)
                  .receiverCertificate(receiverCertificate)  // Include receiver certificate from SMP for truststore injection
-                 .signMessage(true)  // PMode[1].Security - Message signing is mandatory for DBNA
-                 .encryptMessage(false)  // Disable AS4-level encryption; transport uses HTTPS which provides encryption
-                 .agreementRef("https://dbnalliance.org/agreements/access_point.html")  // PMode.Agreement
+                  .signMessage(true)  // PMode[1].Security - Message signing is mandatory for DBNA
+                  .encryptMessage(true)  // Enable AS4-level encryption per DBNA spec - Messages are encrypted with receiver's certificate (AES-256-GCM). This is separate from HTTPS transport encryption.
+                  .agreementRef("https://dbnalliance.org/agreements/access_point.html")  // PMode.Agreement
                  .build();
 
         // Step 6: Send document via AS4
