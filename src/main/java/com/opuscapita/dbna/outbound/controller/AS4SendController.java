@@ -87,9 +87,19 @@ public class AS4SendController {
             @PathVariable String docTypeId,
             @PathVariable String processId,
             @RequestBody String documentContent) {
-        logger.info("Received request to send UBL document via DBNA network - SenderId: {}, ReceiverId: {}, DocTypeId: {}, ProcessId: {}", 
-            senderId, receiverId, docTypeId, processId);
-        
+        logger.info("======== DOCUMENT SEND REQUEST =========\n" +
+            "  Sender ID:      {}\n" +
+            "  Receiver ID:    {}\n" +
+            "  Document Type:  {}\n" +
+            "  Process ID:     {}\n" +
+            "  Document Size:  {} bytes\n" +
+            "========================================",
+
+            senderId, receiverId, docTypeId, processId,
+            documentContent != null ? documentContent.length() : 0);
+        logger.debug("Document content preview (first 200 chars): {}",
+            documentContent != null && documentContent.length() > 200 ? documentContent.substring(0, 200) + "..." : documentContent);
+
         // Step 1: Validate document is valid UBL 2.3 XML
         logger.info("Step 1: Validating document is valid UBL 2.3 XML");
         if (documentContent == null || documentContent.trim().isEmpty()) {
