@@ -397,19 +397,6 @@ public class AS4SendService implements SendService {
                 }
 
                 try {
-                    // Create AS4 outgoing attachment from UBL element
-                    // Serialize Element to byte array for attachment
-                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                    javax.xml.transform.TransformerFactory.newInstance().newTransformer()
-                        .transform(new javax.xml.transform.dom.DOMSource(ublElement),
-                                  new javax.xml.transform.stream.StreamResult(baos));
-
-                    AS4OutgoingAttachment attachment = AS4OutgoingAttachment.builder()
-                        .data(baos.toByteArray())
-                        .mimeType(CMimeType.APPLICATION_XML)
-                        .charset(StandardCharsets.UTF_8)
-                        .build();
-
                     // Build and send AS4 User Message for DBNA network using Phase4 builder
                      // Ensure global scope is set before creating the builder
                      // This is required by Phase4's MetaAS4Manager singleton
@@ -417,15 +404,57 @@ public class AS4SendService implements SendService {
                          messageId, conversationId, fromParty, toParty, request, as4CryptoFactory
                      );
 
-                    // Add the attachment to the builder
-                    builder.addAttachment(attachment);
+                    // Create XHE payload from UBL bytes
+                    byte[] ublBytes;
+                    {
+                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                        javax.xml.transform.TransformerFactory.newInstance().newTransformer()
+                            .transform(new javax.xml.transform.dom.DOMSource(ublElement),
+                                      new javax.xml.transform.stream.StreamResult(baos));
+                        ublBytes = baos.toByteArray();
+                    }
+
+                    // Log UBL document details
+                    int uncompressedSize = ublBytes.length;
+                    logger.debug("=== UBL PAYLOAD DETAILS ===");
+                    logger.debug("Raw UBL XML content (uncompressed):\n{}", request.getUblDocumentContent());
+                    logger.debug("Uncompressed payload size: {} bytes", uncompressedSize);
+
+                    // Log XML structure preview
+                    String xmlPreview = extractXmlStructurePreview(request.getUblDocumentContent());
+                    logger.debug("XML structure preview:\n{}", xmlPreview);
+
+                    // Log builder configuration that will be used
+                    logger.debug("Builder configuration for payload:");
+                    logger.debug("  - Data size: {} bytes", ublBytes.length);
+                    logger.debug("  - Compression: GZIP");
+                    logger.debug("  - MIME type: application/xml");
+                    logger.debug("  - Service: urn:oasis:names:tc:ebxml-msg:service");
+                    logger.debug("  - Action: Send");
+                    logger.debug("  - From Party: {}", fromParty);
+                    logger.debug("  - To Party: {}", toParty);
+                    logger.debug("  - Endpoint: {}", request.getReceiverEndpointUrl());
+                    logger.debug("  - PMode ID: {}", com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId());
+                    logger.debug("=== END PAYLOAD DETAILS ===");
+
+                    // Add the XHE as the payload using builder pattern
+                    // This follows the Phase4 DBNAlliance reference implementation
+                    // Key: pass the builder, not the built attachment, with compression enabled
+                    var payloadBuilder = AS4OutgoingAttachment.builder()
+                        .data(ublBytes)
+                        .compressionGZIP()
+                        .mimeTypeXML();
+
+                    logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
+                    builder.payload(payloadBuilder);
 
                     // Send the message with X.509 certificate signing via AS4 keystore
-                    // Important: Phase4 may log warnings about missing PMode but still attempt to send
-                    logger.info("Initiating AS4 message send via Phase4");
-                    logger.debug("Builder configuration: service=urn:oasis:names:tc:ebxml-msg:service, " +
-                        "action=Send, from={}, to={}, endpoint={}",
-                        fromParty, toParty, request.getReceiverEndpointUrl());
+                     // Important: Phase4 may log warnings about missing PMode but still attempt to send
+                     logger.info("Initiating AS4 message send via Phase4");
+                     logger.debug("Builder configuration: service=urn:oasis:names:tc:ebxml-msg:service, " +
+                         "action=Send, from={}, to={}, endpoint={}",
+                         fromParty, toParty, request.getReceiverEndpointUrl());
+                     logger.debug("Payload: XHE with embedded UBL Invoice ({} bytes, GZIP compressed)", ublBytes.length);
 
                     // Call sendMessageAndCheckForReceipt and capture the result
                     // This returns an enum indicating success or failure of the send operation
@@ -618,5 +647,52 @@ public class AS4SendService implements SendService {
      */
     private boolean isValidEndpointUrl(String url) {
         return isValidString(url);
+    }
+
+    /**
+     * Extract XML structure preview from the UBL document.
+     * Shows the root element and first few child elements for debugging.
+     */
+    private String extractXmlStructurePreview(String xmlContent) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            org.w3c.dom.Document doc = builder.parse(
+                new StringInputStream(xmlContent, StandardCharsets.UTF_8)
+            );
+            org.w3c.dom.Element root = doc.getDocumentElement();
+
+            StringBuilder preview = new StringBuilder();
+            preview.append("Root Element: ").append(root.getTagName()).append("\n");
+            preview.append("Root Attributes:\n");
+            org.w3c.dom.NamedNodeMap attrs = root.getAttributes();
+            for (int i = 0; i < Math.min(attrs.getLength(), 5); i++) {
+                org.w3c.dom.Node attr = attrs.item(i);
+                preview.append("  - ").append(attr.getNodeName()).append(" = ").append(attr.getNodeValue()).append("\n");
+            }
+            if (attrs.getLength() > 5) {
+                preview.append("  ... and ").append(attrs.getLength() - 5).append(" more attributes\n");
+            }
+
+            preview.append("First level children:\n");
+            org.w3c.dom.NodeList children = root.getChildNodes();
+            int elementCount = 0;
+            for (int i = 0; i < children.getLength() && elementCount < 5; i++) {
+                org.w3c.dom.Node child = children.item(i);
+                if (child.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE) {
+                    preview.append("  - <").append(child.getNodeName()).append(">\n");
+                    elementCount++;
+                }
+            }
+            if (elementCount == 0) {
+                preview.append("  (no element children)\n");
+            }
+
+            return preview.toString();
+        } catch (Exception e) {
+            logger.debug("Failed to extract XML structure preview", e);
+            return "Failed to parse XML structure: " + e.getMessage();
+        }
     }
 }

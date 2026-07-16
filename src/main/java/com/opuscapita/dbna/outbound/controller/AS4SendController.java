@@ -87,7 +87,7 @@ public class AS4SendController {
             @PathVariable String docTypeId,
             @PathVariable String processId,
             @RequestBody String documentContent) {
-        logger.info("======== DOCUMENT SEND REQUEST =========\n" +
+        logger.info("\n======== DOCUMENT SEND REQUEST =========\n" +
             "  Sender ID:      {}\n" +
             "  Receiver ID:    {}\n" +
             "  Document Type:  {}\n" +

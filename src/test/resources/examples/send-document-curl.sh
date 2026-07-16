@@ -16,7 +16,7 @@ SERVICE_URL="http://localhost:3310"
 SEND_ENDPOINT="/api/as4/send"
 
 # Identifiers (Sender, Receiver)
-SENDER_ID="GLN::1234567890123"
+SENDER_ID="FI:OVT::003728468254"
 RECEIVER_ID="FI:OVT::003728468254"
 
 # Document Type Identifier (UBL Invoice)
@@ -73,7 +73,7 @@ curl -X POST \
   -H "Content-Type: application/xml" \
   -d @"$XML_FILE" \
   -w "\nHTTP Status: %{http_code}\n" \
-  -s
+  -v
 
 echo ""
 echo "=========================================="
