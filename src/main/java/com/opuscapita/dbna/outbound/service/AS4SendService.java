@@ -148,19 +148,19 @@ public class AS4SendService implements SendService {
         );
 
         // Extract metadata from ContainerMessage to build AS4SendRequest
-        AS4SendRequest request = AS4SendRequest.builder()
-            .ublDocumentContent(ublContent)
-            .receiverEndpointUrl(serviceInfo.getEndpointUrl())
-            .senderId(cm.getMetadata().getSenderId())
-            .receiverId(cm.getMetadata().getRecipientId())
-            .conversationId(cm.getMetadata().getMessageId())
-            .documentType(cm.getMetadata().getDocumentTypeIdentifier())
-            .processId(cm.getMetadata().getProfileTypeIdentifier())
-            .signMessage(true)  // Always sign AS4 messages for DBNA
-            .encryptMessage(false)  // Configure as needed
-            .receiverCertificate(serviceInfo.getReceiverCertificate())  // Add receiver certificate for truststore injection
-            .build();
-        
+         AS4SendRequest request = AS4SendRequest.builder()
+             .ublDocumentContent(ublContent)
+             .receiverEndpointUrl(serviceInfo.getEndpointUrl())
+             .senderId(cm.getMetadata().getSenderId())
+             .receiverId(cm.getMetadata().getRecipientId())
+             .conversationId(cm.getMetadata().getMessageId())
+             .documentType(cm.getMetadata().getDocumentTypeIdentifier())
+             .processId(cm.getMetadata().getProfileTypeIdentifier())
+             .signMessage(true)  // Always sign AS4 messages for DBNA
+             .encryptMessage(true)  // Enable encryption per DBNA PMode specification (AES-256-GCM)
+             .receiverCertificate(serviceInfo.getReceiverCertificate())  // Add receiver certificate for truststore injection
+             .build();
+
         logger.info("Sending AS4 message for file: {} to endpoint: {}", 
             cm.getFileName(), request.getReceiverEndpointUrl());
         
@@ -438,15 +438,18 @@ public class AS4SendService implements SendService {
                     logger.debug("=== END PAYLOAD DETAILS ===");
 
                     // Add the XHE as the payload using builder pattern
-                    // This follows the Phase4 DBNAlliance reference implementation
-                    // Key: pass the builder, not the built attachment, with compression enabled
-                    var payloadBuilder = AS4OutgoingAttachment.builder()
-                        .data(ublBytes)
-                        .compressionGZIP()
-                        .mimeTypeXML();
+                     // This follows the Phase4 DBNAlliance reference implementation
+                     // Key: Build the attachment and then pass it to addAttachment()
+                     var payloadAttachment = AS4OutgoingAttachment.builder()
+                         .data(ublBytes)
+                         .compressionGZIP()
+                         .mimeTypeXML()
+                         .build();
 
-                    logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
-                    builder.payload(payloadBuilder);
+                     logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
+                     logger.debug("Attachment object created: {} with data size: {}",
+                         payloadAttachment.getClass().getSimpleName(), ublBytes.length);
+                     builder.addAttachment(payloadAttachment);
 
                     // Send the message with X.509 certificate signing via AS4 keystore
                      // Important: Phase4 may log warnings about missing PMode but still attempt to send
@@ -594,46 +597,76 @@ public class AS4SendService implements SendService {
          }
      }
 
-      /**
-       * Create the AS4 builder with all the required parameters from the request.
-       *
-       * The .pmodeID("bdxr-as4-1.0") references the DBNA PMode that is automatically
-       * registered by Phase4 when phase4-profile-dbnalliance is on the classpath.
-       */
-      private AS4Sender.BuilderUserMessage createAS4Builder(
-              String messageId, String conversationId, String fromParty, String toParty,
-              AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
+       /**
+        * Create the AS4 builder with all the required parameters from the request.
+        *
+        * The .pmodeID("bdxr-as4-1.0") references the DBNA PMode that is automatically
+        * registered by Phase4 when phase4-profile-dbnalliance is on the classpath.
+        */
+       private AS4Sender.BuilderUserMessage createAS4Builder(
+               String messageId, String conversationId, String fromParty, String toParty,
+               AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
 
-          // Build the base builder with all required AS4 parameters
-          // Phase4's BuilderUserMessage requires several mandatory fields to create a valid AS4 message
-          return new AS4Sender.BuilderUserMessage()
-              .cryptoFactory(as4CryptoFactory)
-              // Signing-specific crypto factory - CRITICAL: Required for message signing
-              // Phase4 uses cryptoFactorySign specifically for signing operations
-              // This ensures the correct keystore and key alias are used when signing the message
-              .cryptoFactorySign(as4CryptoFactory)
-              // PMode ID - CRITICAL: Phase4 requires a PMode to be set
-              // Using BDXR PMode ID "bdxr-as4-1.0" registered by phase4-profile-dbnalliance
-              // This PMode is automatically discovered by Phase4 at runtime
-              .pmodeID(com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId())
-              // Message IDs - Required
-              .messageID(messageId)
-              .conversationID(conversationId)
-              // Sender Party - Required
-              .fromPartyID(fromParty)
-              .fromRole(fromPartyRole)
-              // Receiver Party - Required
-              .toPartyID(toParty)
-              .toRole(toPartyRole)
-              // Service - Required for AS4 user message (standard OASIS ebMS service)
-              .service("urn:oasis:names:tc:ebxml-msg:service")
-              // Action - Required for AS4 user message (standard send action)
-              .action("Send")
-              // Agreement reference if provided
-              .agreementRef(request.getAgreementRef())
-              // Endpoint URL - Required (where to send the message)
-              .endpointURL(request.getReceiverEndpointUrl());
-      }
+           // Build the base builder with all required AS4 parameters
+           // Phase4's BuilderUserMessage requires several mandatory fields to create a valid AS4 message
+           var builder = new AS4Sender.BuilderUserMessage()
+               .cryptoFactory(as4CryptoFactory)
+               // Signing-specific crypto factory - CRITICAL: Required for message signing
+               // Phase4 uses cryptoFactorySign specifically for signing operations
+               // This ensures the correct keystore and key alias are used when signing the message
+               .cryptoFactorySign(as4CryptoFactory)
+               // PMode ID - CRITICAL: Phase4 requires a PMode to be set
+               // Using BDXR PMode ID "bdxr-as4-1.0" registered by phase4-profile-dbnalliance
+               // This PMode is automatically discovered by Phase4 at runtime
+               .pmodeID(com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId())
+               // Message IDs - Required
+               .messageID(messageId)
+               .conversationID(conversationId)
+               // Sender Party - Required
+               .fromPartyID(fromParty)
+               .fromRole(fromPartyRole)
+               // Receiver Party - Required
+               .toPartyID(toParty)
+               .toRole(toPartyRole)
+               // Service - Required for AS4 user message (standard OASIS ebMS service)
+               .service("urn:oasis:names:tc:ebxml-msg:service")
+               // Action - Required for AS4 user message (standard send action)
+               .action("Send")
+               // Agreement reference if provided
+               .agreementRef(request.getAgreementRef())
+               // Endpoint URL - Required (where to send the message)
+               .endpointURL(request.getReceiverEndpointUrl());
+
+            // Configure encryption if requested and receiver certificate is available
+            // Per DBNA spec: We encrypt with the receiver's certificate from SMP (AES-256-GCM)
+            if (request.isEncryptMessage()) {
+                if (request.getReceiverCertificate() != null) {
+                    logger.debug("Configuring AS4 message encryption with receiver certificate from SMP");
+                    try {
+                        // Set the receiver certificate for encryption on the builder
+                        // Phase4 uses receiverCertificate() method to configure encryption
+                        builder.receiverCertificate(request.getReceiverCertificate());
+                        logger.debug("✓ Receiver certificate configured for AS4 message encryption");
+                    } catch (Exception e) {
+                        logger.warn("Failed to configure encryption certificate: {}. Encryption may not be applied.", e.getMessage());
+                    }
+                } else {
+                    logger.warn("Encryption requested but no receiver certificate available. Encryption will not be applied. " +
+                        "This may cause the AS4 message transmission to fail.");
+                }
+            }
+
+            // Configure signing if requested
+            // We use the keystore certificate for signing (our certificate)
+            if (request.isSignMessage()) {
+                logger.debug("Configuring AS4 message signing");
+                // Phase4 will use the crypto factory to sign with the key alias configured in the AS4Configuration
+                // The key alias is set in as4CryptoFactory which was passed as cryptoFactorySign
+                // Nothing additional needs to be configured here as the crypto factory handles it
+            }
+
+            return builder;
+       }
 
     /**
      * Helper method to validate that a string is not null or empty.

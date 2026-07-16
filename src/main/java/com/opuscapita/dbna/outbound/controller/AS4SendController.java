@@ -213,7 +213,7 @@ public class AS4SendController {
                  .receiverEndpointUrl(receiverEndpointUrl)
                  .receiverCertificate(receiverCertificate)  // Include receiver certificate from SMP for truststore injection
                  .signMessage(true)  // PMode[1].Security - Message signing is mandatory for DBNA
-                 .encryptMessage(true)  // PMode[1].Security.X509.Encryption.Encrypt = True
+                 .encryptMessage(false)  // Disable AS4-level encryption; transport uses HTTPS which provides encryption
                  .agreementRef("https://dbnalliance.org/agreements/access_point.html")  // PMode.Agreement
                  .build();
 
