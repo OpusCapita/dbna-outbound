@@ -498,46 +498,74 @@ public class AS4SendService implements SendService {
                          fromParty, toParty, request.getReceiverEndpointUrl());
                      logger.debug("Payload: XHE with embedded UBL Invoice ({} bytes, GZIP compressed)", ublBytes.length);
 
-                    // Call sendMessageAndCheckForReceipt and capture the result
-                     // This returns an enum indicating success or failure of the send operation
-                     // IMPORTANT: This is where Phase4 sends the multipart HTTP request via BasicHttpPoster
-                     // Known Issue: If the receiver gets "Request body is required" error (400), it means
-                     // Phase4 is not properly including the HTTP body in the POST request.
-                     // This can happen if the repeatable HTTP entity is not being read correctly.
-                     Object sendResult = null;
-                     try {
-                         logger.debug("Calling Phase4 sendMessageAndCheckForReceipt()...");
-                         logger.debug("Phase4 will now:");
-                         logger.debug("  1. Sign the message with our certificate (keystore: {}, alias: {})",
-                             as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
-                         logger.debug("  2. Encrypt the message with receiver's certificate from SMP");
-                         logger.debug("  3. Create multipart/related MIME message");
-                         logger.debug("  4. Convert to repeatable HTTP entity (using temp file)");
-                         logger.debug("  5. Send HTTP POST to {}", request.getReceiverEndpointUrl());
+                     // Call sendMessageAndCheckForReceipt and capture the result
+                      // This returns an enum indicating success or failure of the send operation
+                      // IMPORTANT: This is where Phase4 sends the multipart HTTP request via BasicHttpPoster
+                      // Known Issue: If the receiver gets "Request body is required" error (400), it means
+                      // Phase4 is not properly including the HTTP body in the POST request.
+                      // This can happen if the repeatable HTTP entity is not being read correctly.
+                      Object sendResult = null;
+                      try {
+                          logger.debug("Calling Phase4 sendMessageAndCheckForReceipt()...");
+                          logger.debug("Phase4 will now:");
+                          logger.debug("  1. Sign the message with our certificate (keystore: {}, alias: {})",
+                              as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
+                          logger.debug("  2. Encrypt the message with receiver's certificate from SMP");
+                          logger.debug("  3. Create multipart/related MIME message");
+                          logger.debug("  4. Convert to repeatable HTTP entity (using temp file)");
+                          logger.debug("  5. Send HTTP POST to {}", request.getReceiverEndpointUrl());
 
-                         long startTime = System.currentTimeMillis();
-                         sendResult = builder.sendMessageAndCheckForReceipt();
-                         long duration = System.currentTimeMillis() - startTime;
+                          long startTime = System.currentTimeMillis();
+                          sendResult = builder.sendMessageAndCheckForReceipt();
+                          long duration = System.currentTimeMillis() - startTime;
 
-                         logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} (type: {}) after {} ms",
-                             sendResult, sendResult.getClass().getSimpleName(), duration);
-                         logger.debug("HTTP transmission completed. Checking result status...");
-                    } catch (Exception e) {
-                        logger.error("Phase4 sendMessageAndCheckForReceipt() threw an exception", e);
-
-                        // Check if the exception indicates a configuration issue
-                        String exMsg = e.getMessage();
-                        if (exMsg != null && (exMsg.contains("mandatory field") || exMsg.contains("PMode"))) {
-                            logger.error("CRITICAL: AS4 message send failed due to missing fields or configuration issues: {}", exMsg);
-                            return responseBuilder
-                                .success(false)
-                                .status("FAILED")
-                                .errorMessage("AS4 send failed: " + exMsg)
-                                .build();
-                        }
-                        // For other exceptions, re-throw to be caught by outer handler
-                        throw e;
-                    }
+                          logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} (type: {}) after {} ms",
+                              sendResult, sendResult.getClass().getSimpleName(), duration);
+                          logger.debug("HTTP transmission completed. Checking result status...");
+                     } catch (Exception e) {
+                          logger.error("Phase4 sendMessageAndCheckForReceipt() threw an exception", e);
+                          
+                          // Check if this is a parsing error (e.g., JSON instead of SOAP)
+                          String exMsg = e.getMessage();
+                          Throwable cause = e.getCause();
+                          
+                          // If the root cause is a SAXParseException, it likely means we received non-XML content
+                          if (cause instanceof org.xml.sax.SAXParseException) {
+                              org.xml.sax.SAXParseException saxEx = (org.xml.sax.SAXParseException) cause;
+                              if (saxEx.getMessage() != null && saxEx.getMessage().contains("Content is not allowed in prolog")) {
+                                  logger.warn("Received non-XML response from endpoint (likely JSON or HTML error). " +
+                                      "This indicates the endpoint may not be a valid AS4 endpoint or returned an error. " +
+                                      "SAX Error: {}", saxEx.getMessage());
+                                  
+                                  // The message was likely sent successfully (HTTP 200+), but the response wasn't valid AS4
+                                  // This is a common issue when:
+                                  // 1. The endpoint returns JSON instead of SOAP
+                                  // 2. The endpoint returned an HTML error page
+                                  // 3. The endpoint is not a proper AS4 endpoint
+                                  // We treat this as a transmission error since we can't verify receipt
+                                  return responseBuilder
+                                      .success(false)
+                                      .status("TRANSMISSION_ERROR")
+                                      .errorMessage("AS4 message may have been sent, but receiver returned non-SOAP response. " +
+                                          "Endpoint may not support proper AS4 signal message receipts. " +
+                                          "This is common with REST/JSON endpoints instead of SOAP/AS4 endpoints.")
+                                      .build();
+                              }
+                          }
+                          
+                          // Check if the exception indicates a configuration issue
+                          if (exMsg != null && (exMsg.contains("mandatory field") || exMsg.contains("PMode"))) {
+                              logger.error("CRITICAL: AS4 message send failed due to missing fields or configuration issues: {}", exMsg);
+                              return responseBuilder
+                                  .success(false)
+                                  .status("FAILED")
+                                  .errorMessage("AS4 send failed: " + exMsg)
+                                  .build();
+                          }
+                          
+                          // For other exceptions, re-throw to be caught by outer handler
+                          throw e;
+                     }
 
                     // Validate the send result
                     // The result is an enum - SUCCESS means the send succeeded, any other value means failure
