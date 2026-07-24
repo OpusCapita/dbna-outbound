@@ -156,9 +156,9 @@ public class AS4SendService implements SendService {
               .conversationId(cm.getMetadata().getMessageId())
               .documentType(cm.getMetadata().getDocumentTypeIdentifier())
               .processId(cm.getMetadata().getProfileTypeIdentifier())
-              .signMessage(true)  // Always sign AS4 messages for DBNA
-              .encryptMessage(false)  // TODO: Disable encryption for now - Phase4 PMode encryption needs proper certificate configuration
-              .receiverCertificate(serviceInfo.getReceiverCertificate())  // Add receiver certificate for truststore injection
+               .signMessage(true)  // Always sign AS4 messages for DBNA
+               .encryptMessage(true)  // Enable encryption per DBNA spec - receiver certificate from SMP will be used for AES-256-GCM encryption
+               .receiverCertificate(serviceInfo.getReceiverCertificate())  // Add receiver certificate for truststore injection
               .build();
 
         logger.info("Sending AS4 message for file: {} to endpoint: {}", 
@@ -437,47 +437,58 @@ public class AS4SendService implements SendService {
                     logger.debug("  - PMode ID: {}", com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId());
                     logger.debug("=== END PAYLOAD DETAILS ===");
 
-                    // Add the XHE as the payload using builder pattern
-                     // This follows the Phase4 DBNAlliance reference implementation
-                     // Key: Phase4 requires attachments to be "repeatable" for signing/encryption
-                     // We use a file-based data source to ensure the data is accessible throughout signing and encryption
-                     java.io.File tempAttachmentFile = null;
-                     try {
-                         // Create a temporary file to store the attachment data
-                         // This ensures Phase4 can read the data multiple times (for signing and encryption)
-                         tempAttachmentFile = java.io.File.createTempFile("as4-payload-", ".xml", new java.io.File(System.getProperty("java.io.tmpdir")));
-                         tempAttachmentFile.deleteOnExit();
+                      // Add the XHE as the payload using builder pattern
+                      // This follows the Phase4 DBNAlliance reference implementation
+                      // Key: Phase4 requires attachments to be "repeatable" for signing/encryption
+                      // We use a file-based data source to ensure the data is accessible throughout signing and encryption
+                      //
+                      // KNOWN ISSUE & WORKAROUND:
+                      // Phase4's BasicHttpPoster may not properly include the multipart message body in the HTTP POST request,
+                      // resulting in "Request body is required" (400) errors from the receiving endpoint.
+                      //
+                      // Root Cause: Phase4 converts the MIME message to a repeatable HTTP entity using a temporary file,
+                      // but the HTTP client may not properly read and stream the content to the HTTP request body.
+                      //
+                      // Workaround: We create the attachment using a File-based data source (not just byte array).
+                      // This ensures Phase4 can reopen/reread the data during signing, encryption, and HTTP transmission.
+                      // File-based approach is more reliable than byte arrays for large or complex messages.
+                      java.io.File tempAttachmentFile = null;
+                      try {
+                          // Create a temporary file to store the attachment data
+                          // This ensures Phase4 can read the data multiple times (for signing and encryption)
+                          tempAttachmentFile = java.io.File.createTempFile("as4-payload-", ".xml", new java.io.File(System.getProperty("java.io.tmpdir")));
+                          tempAttachmentFile.deleteOnExit();
 
-                         // Write the UBL bytes to the temporary file
-                         try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempAttachmentFile)) {
-                             fos.write(ublBytes);
-                             fos.flush();
-                         }
+                          // Write the UBL bytes to the temporary file
+                          try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempAttachmentFile)) {
+                              fos.write(ublBytes);
+                              fos.flush();
+                          }
 
-                         logger.debug("Created temporary attachment file: {}", tempAttachmentFile.getAbsolutePath());
+                          logger.debug("Created temporary attachment file: {}", tempAttachmentFile.getAbsolutePath());
 
-                          // Create the attachment using the file data source
-                          // This is more reliable than passing raw bytes because Phase4 can reopen the file as needed
-                          var payloadAttachment = AS4OutgoingAttachment.builder()
-                              .data(tempAttachmentFile)
-                              .compressionGZIP()
-                              .mimeType(CMimeType.APPLICATION_XML)
-                              .build();
+                           // Create the attachment using the file data source
+                           // This is more reliable than passing raw bytes because Phase4 can reopen the file as needed
+                           var payloadAttachment = AS4OutgoingAttachment.builder()
+                               .data(tempAttachmentFile)
+                               .compressionGZIP()
+                               .mimeType(CMimeType.APPLICATION_XML)
+                               .build();
 
-                         logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
-                         logger.debug("Attachment object created: {} with data size: {}",
-                             payloadAttachment.getClass().getSimpleName(), ublBytes.length);
-                         builder.addAttachment(payloadAttachment);
-                     } catch (Exception attachmentEx) {
-                         logger.error("Failed to create attachment with file data source, falling back to byte array", attachmentEx);
-                          // Fallback to byte array if file creation fails
-                          var payloadAttachment = AS4OutgoingAttachment.builder()
-                              .data(ublBytes)
-                              .compressionGZIP()
-                              .mimeType(CMimeType.APPLICATION_XML)
-                              .build();
-                         builder.addAttachment(payloadAttachment);
-                     }
+                          logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
+                          logger.debug("Attachment object created: {} with data size: {}",
+                              payloadAttachment.getClass().getSimpleName(), ublBytes.length);
+                          builder.addAttachment(payloadAttachment);
+                      } catch (Exception attachmentEx) {
+                          logger.error("Failed to create attachment with file data source, falling back to byte array", attachmentEx);
+                           // Fallback to byte array if file creation fails
+                           var payloadAttachment = AS4OutgoingAttachment.builder()
+                               .data(ublBytes)
+                               .compressionGZIP()
+                               .mimeType(CMimeType.APPLICATION_XML)
+                               .build();
+                          builder.addAttachment(payloadAttachment);
+                      }
 
                     // Send the message with X.509 certificate signing via AS4 keystore
                      // Important: Phase4 may log warnings about missing PMode but still attempt to send
@@ -488,13 +499,29 @@ public class AS4SendService implements SendService {
                      logger.debug("Payload: XHE with embedded UBL Invoice ({} bytes, GZIP compressed)", ublBytes.length);
 
                     // Call sendMessageAndCheckForReceipt and capture the result
-                    // This returns an enum indicating success or failure of the send operation
-                    Object sendResult = null;
-                    try {
-                        logger.debug("Calling Phase4 sendMessageAndCheckForReceipt()...");
-                        sendResult = builder.sendMessageAndCheckForReceipt();
-                        logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} (type: {})",
-                            sendResult, sendResult.getClass().getSimpleName());
+                     // This returns an enum indicating success or failure of the send operation
+                     // IMPORTANT: This is where Phase4 sends the multipart HTTP request via BasicHttpPoster
+                     // Known Issue: If the receiver gets "Request body is required" error (400), it means
+                     // Phase4 is not properly including the HTTP body in the POST request.
+                     // This can happen if the repeatable HTTP entity is not being read correctly.
+                     Object sendResult = null;
+                     try {
+                         logger.debug("Calling Phase4 sendMessageAndCheckForReceipt()...");
+                         logger.debug("Phase4 will now:");
+                         logger.debug("  1. Sign the message with our certificate (keystore: {}, alias: {})",
+                             as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
+                         logger.debug("  2. Encrypt the message with receiver's certificate from SMP");
+                         logger.debug("  3. Create multipart/related MIME message");
+                         logger.debug("  4. Convert to repeatable HTTP entity (using temp file)");
+                         logger.debug("  5. Send HTTP POST to {}", request.getReceiverEndpointUrl());
+
+                         long startTime = System.currentTimeMillis();
+                         sendResult = builder.sendMessageAndCheckForReceipt();
+                         long duration = System.currentTimeMillis() - startTime;
+
+                         logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} (type: {}) after {} ms",
+                             sendResult, sendResult.getClass().getSimpleName(), duration);
+                         logger.debug("HTTP transmission completed. Checking result status...");
                     } catch (Exception e) {
                         logger.error("Phase4 sendMessageAndCheckForReceipt() threw an exception", e);
 
@@ -669,20 +696,24 @@ public class AS4SendService implements SendService {
                 // Endpoint URL - Required (where to send the message)
                 .endpointURL(request.getReceiverEndpointUrl());
 
-            // Configure encryption if requested and receiver certificate is available
-            // Per DBNA spec: We encrypt with the receiver's certificate from SMP (AES-256-GCM)
-            // NOTE: The DBNA PMode (bdxr-as4-1.0) specifies AES-256-GCM encryption
-            // Phase4 will use this PMode to determine encryption is needed
-            // The receiver certificate is already injected into the truststore above (line 358)
-            if (request.isEncryptMessage()) {
-                if (request.getReceiverCertificate() != null) {
-                    logger.debug("Encryption requested: receiver certificate is available from SMP");
-                    logger.debug("Phase4 will encrypt the message using the PMode configuration (AES-256-GCM)");
-                } else {
-                    logger.warn("Encryption requested but no receiver certificate available from SMP. " +
-                        "Phase4 will attempt to use PMode encryption configuration but may fail.");
-                }
-            }
+             // Configure encryption if requested and receiver certificate is available
+             // Per DBNA spec: We encrypt with the receiver's certificate from SMP (AES-256-GCM)
+             // NOTE: The DBNA PMode (bdxr-as4-1.0) specifies AES-256-GCM encryption
+             // Phase4 will use this PMode to determine encryption is needed
+             // The receiver certificate must be provided explicitly for Phase4's encryption to work
+             if (request.isEncryptMessage()) {
+                 if (request.getReceiverCertificate() != null) {
+                     logger.debug("Encryption requested: receiver certificate is available from SMP");
+                     logger.debug("Providing receiver certificate to Phase4 builder for encryption");
+                     // CRITICAL: Provide the receiver certificate to Phase4 for encryption
+                     // This tells Phase4's encryption engine (WSS4J) which certificate to use for encrypting the message
+                     builder.receiverCertificate(request.getReceiverCertificate());
+                     logger.debug("Phase4 will encrypt the message using AES-256-GCM (from PMode) with receiver's certificate");
+                 } else {
+                     logger.warn("Encryption requested but no receiver certificate available from SMP. " +
+                         "Encryption will fail - the message cannot be encrypted without the receiver's certificate.");
+                 }
+             }
 
             // Configure signing if requested
             // We use the keystore certificate for signing (our certificate)
