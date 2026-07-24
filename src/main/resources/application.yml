@@ -48,6 +48,8 @@ sirius:
 # - Use 'dev' profile for development (no certificates required)
 # - Use 'prod' profile for production (certificates required)
 as4:
+  api:
+    token: ${AS4_API_TOKEN:}  # API token for Authorization header (Bearer token). Leave empty to disable token validation.
   keystore:
     path: ${KEYSTORE_PATH:keystore.jks}
     password: ${KEYSTORE_PASSWORD:changeit}
@@ -85,8 +87,13 @@ logging:
   level:
     root: INFO
     com.opuscapita.dbna: DEBUG
-    com.helger.phase4: INFO
-    org.springframework.web: INFO
+    com.opuscapita.dbna.outbound.controller.HealthController: WARN
+    com.helger.phase4: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor: DEBUG
+    org.apache.http: DEBUG
+    org.apache.http.wire: DEBUG
+    org.apache.http.headers: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} %logger{36} - %level: %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %logger{36} - %level: %msg%n"

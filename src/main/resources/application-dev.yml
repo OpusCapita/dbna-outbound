@@ -30,6 +30,8 @@ dbna:
 # AS4 Configuration - Development Mode
 # Uses in-memory truststore with certificates dynamically injected from SMP queries
 as4:
+  api:
+    token: ${AS4_API_TOKEN:}  # API token for Authorization header (Bearer token). Leave empty to disable token validation.
   keystore:
     path: ${KEYSTORE_PATH:test-keystore.p12}
     password: ${KEYSTORE_PASSWORD:testpassword}

@@ -22,6 +22,8 @@ dbna:
 
 # AS4 Configuration - Test Mode
 as4:
+  api:
+    token: test-token-secret  # Test token for unit tests
   keystore:
     path: test-keystore.jks
     password: testpass

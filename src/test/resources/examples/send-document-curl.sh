@@ -8,12 +8,19 @@
 #   - curl command line tool
 #   - Service running on http://localhost:3310
 #   - UBL XML document (sample-invoice.xml)
+#   - API token (set via AS4_API_TOKEN environment variable, optional if not configured in service)
+#
+# Usage:
+#   AS4_API_TOKEN="your-secret-token" ./send-document-curl.sh
 
 set -e
 
 # Configuration
 SERVICE_URL="http://localhost:3310"
 SEND_ENDPOINT="/api/as4/send"
+
+# API Token for Authorization (set via environment variable AS4_API_TOKEN or use default)
+API_TOKEN="${AS4_API_TOKEN:-}"
 
 # Identifiers (Sender, Receiver)
 SENDER_ID="FI:OVT::003728468254"
@@ -34,6 +41,7 @@ echo "=========================================="
 echo ""
 echo "Configuration:"
 echo "  Service URL:      $SERVICE_URL"
+echo "  API Token:        $([ -z "$API_TOKEN" ] && echo "Not set (optional)" || echo "***")"
 echo "  Sender ID:        $SENDER_ID"
 echo "  Receiver ID:      $RECEIVER_ID"
 echo "  Document Type:    $DOC_TYPE_ID"
@@ -61,6 +69,7 @@ echo ""
 echo "Request Details:"
 echo "  Method:       POST"
 echo "  Content-Type: application/xml"
+echo "  Authorization: $([ -z "$API_TOKEN" ] && echo "Not set" || echo "Bearer ***")"
 echo "  Body:         $(head -c 100 $XML_FILE)..."
 echo ""
 
@@ -68,12 +77,23 @@ echo ""
 echo "Sending request..."
 echo ""
 
-curl -X POST \
-  "$FULL_URL" \
-  -H "Content-Type: application/xml" \
-  -d @"$XML_FILE" \
-  -w "\nHTTP Status: %{http_code}\n" \
-  -v
+# Build curl command with optional Authorization header
+if [ -z "$API_TOKEN" ]; then
+  curl -X POST \
+    "$FULL_URL" \
+    -H "Content-Type: application/xml" \
+    -d @"$XML_FILE" \
+    -w "\nHTTP Status: %{http_code}\n" \
+    -v
+else
+  curl -X POST \
+    "$FULL_URL" \
+    -H "Content-Type: application/xml" \
+    -H "Authorization: Bearer $API_TOKEN" \
+    -d @"$XML_FILE" \
+    -w "\nHTTP Status: %{http_code}\n" \
+    -v
+fi
 
 echo ""
 echo "=========================================="

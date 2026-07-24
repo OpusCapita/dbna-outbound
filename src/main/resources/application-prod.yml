@@ -29,6 +29,8 @@ dbna:
 
 # AS4 Configuration - Production Mode (Certificates Required)
 as4:
+  api:
+    token: ${AS4_API_TOKEN:changeit}  # Production API token - MUST be set via environment variable
   keystore:
     path: ${KEYSTORE_PATH:/var/certs/keystore.jks}
     password: ${KEYSTORE_PASSWORD:changeit}

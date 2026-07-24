@@ -41,6 +41,9 @@ public class AS4SendController {
     @Value("${dbna.receiver.url:}")
     private String receiverEndpointOverride;
 
+    @Value("${as4.api.token:}")
+    private String apiToken;
+
     private final AS4SendService as4SendService;
     private final SMLLookupService smlLookupService;
     private final SMPService smpService;
@@ -86,7 +89,12 @@ public class AS4SendController {
             @PathVariable String receiverId,
             @PathVariable String docTypeId,
             @PathVariable String processId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody String documentContent) {
+
+        // Validate API token from Authorization header
+        validateApiToken(authHeader);
+
         logger.info("\n======== DOCUMENT SEND REQUEST =========\n" +
             "  Sender ID:      {}\n" +
             "  Receiver ID:    {}\n" +
@@ -233,5 +241,36 @@ public class AS4SendController {
         } catch (Exception e) {
             throw new AS4TransmissionException("AS4 message transmission failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Validates API token from Authorization header
+     * Expected format: Bearer {token}
+     *
+     * @param authHeader Authorization header value
+     * @throws DocumentValidationException if token is missing, invalid format, or does not match configured token
+     */
+    private void validateApiToken(String authHeader) {
+        if (apiToken == null || apiToken.trim().isEmpty()) {
+            logger.warn("API token validation skipped - as4.api.token property not configured");
+            return;
+        }
+
+        if (authHeader == null || authHeader.trim().isEmpty()) {
+            throw new DocumentValidationException("Missing Authorization header - API token is required");
+        }
+
+        final String bearerPrefix = "Bearer ";
+        if (!authHeader.startsWith(bearerPrefix)) {
+            throw new DocumentValidationException("Invalid Authorization header format - expected 'Bearer {token}'");
+        }
+
+        String token = authHeader.substring(bearerPrefix.length()).trim();
+        if (!token.equals(apiToken)) {
+            logger.warn("API token validation failed - token mismatch");
+            throw new DocumentValidationException("Invalid API token");
+        }
+
+        logger.debug("API token validation successful");
     }
 }
