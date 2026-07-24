@@ -18,6 +18,7 @@ public class AS4SendResponse {
     private String messageId;
     private String status;
     private String errorMessage;
+    private String warningMessage;
     private long timestamp;
 }
 
