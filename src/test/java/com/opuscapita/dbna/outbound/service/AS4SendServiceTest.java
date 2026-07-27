@@ -5,6 +5,7 @@ import com.opuscapita.dbna.outbound.config.AS4Configuration;
 import com.opuscapita.dbna.outbound.exception.DocumentValidationException;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
+import com.opuscapita.dbna.outbound.model.AS4SendStatus;
 import com.opuscapita.dbna.outbound.model.AS4TransmissionResponse;
 import com.opuscapita.dbna.outbound.model.SMPServiceInfo;
 import com.opuscapita.dbna.outbound.model.TransmissionResponse;
@@ -86,7 +87,7 @@ class AS4SendServiceTest {
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
             .messageId("TEST-MSG-" + System.currentTimeMillis())
-            .status("SENT")
+            .status(AS4SendStatus.SENT)
             .timestamp(System.currentTimeMillis())
             .build();
         lenient().doReturn(successResponse).when(as4SendService).sendAS4Message(any(AS4SendRequest.class));

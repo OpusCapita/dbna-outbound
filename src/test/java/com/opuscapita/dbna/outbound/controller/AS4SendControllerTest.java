@@ -6,6 +6,7 @@ import com.opuscapita.dbna.outbound.exception.SMPDiscoveryException;
 import com.opuscapita.dbna.outbound.exception.AS4TransmissionException;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
+import com.opuscapita.dbna.outbound.model.AS4SendStatus;
 import com.opuscapita.dbna.outbound.model.SMPServiceInfo;
 import com.opuscapita.dbna.outbound.service.AS4SendService;
 import com.opuscapita.dbna.outbound.service.CertificateValidationService;
@@ -85,7 +86,7 @@ class AS4SendControllerTest {
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
             .messageId("TEST-MSG-123")
-            .status("SENT")
+            .status(AS4SendStatus.SENT)
             .timestamp(System.currentTimeMillis())
             .build();
 
@@ -94,19 +95,19 @@ class AS4SendControllerTest {
 
         // Act
         ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, testDocumentContent);
+            senderId, receiverId, docTypeId, processId, null, testDocumentContent);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertTrue(response.getBody().isSuccess());
         assertEquals("TEST-MSG-123", response.getBody().getMessageId());
-        assertEquals("SENT", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.SENT, response.getBody().getStatus());
     }
 
     @Test
     @DisplayName("Should return bad request when document content is empty")
-    void testSendDocumentWithEmptyContent() throws Exception {
+    void testSendDocumentWithEmptyContent() {
         // Arrange
         String senderId = "sender-001";
         String receiverId = "receiver-001";
@@ -116,7 +117,7 @@ class AS4SendControllerTest {
 
         // Act & Assert
         assertThrows(DocumentValidationException.class, () ->
-            controller.sendDocument(senderId, receiverId, docTypeId, processId, emptyContent),
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, null, emptyContent),
             "Should throw DocumentValidationException for empty content");
 
         // Verify service was not called
@@ -125,7 +126,7 @@ class AS4SendControllerTest {
 
     @Test
     @DisplayName("Should return bad request when document content is null")
-    void testSendDocumentWithNullContent() throws Exception {
+    void testSendDocumentWithNullContent() {
         // Arrange
         String senderId = "sender-001";
         String receiverId = "receiver-001";
@@ -134,7 +135,7 @@ class AS4SendControllerTest {
 
         // Act & Assert
         assertThrows(DocumentValidationException.class, () ->
-            controller.sendDocument(senderId, receiverId, docTypeId, processId, null),
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, null, null),
             "Should throw DocumentValidationException for null content");
 
         // Verify service was not called
@@ -160,7 +161,7 @@ class AS4SendControllerTest {
 
         AS4SendResponse failureResponse = AS4SendResponse.builder()
             .success(false)
-            .status("ERROR")
+            .status(AS4SendStatus.ERROR)
             .errorMessage("Failed to send AS4 message")
             .timestamp(System.currentTimeMillis())
             .build();
@@ -170,7 +171,7 @@ class AS4SendControllerTest {
 
         // Act & Assert
         assertThrows(AS4TransmissionException.class, () ->
-            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, null, testDocumentContent),
             "Should throw AS4TransmissionException when AS4 message transmission fails");
     }
 
@@ -193,7 +194,7 @@ class AS4SendControllerTest {
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
             .messageId("MSG-001")
-            .status("SENT")
+            .status(AS4SendStatus.SENT)
             .timestamp(System.currentTimeMillis())
             .build();
 
@@ -201,7 +202,7 @@ class AS4SendControllerTest {
             .thenReturn(successResponse);
 
         // Act
-        controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent);
+        controller.sendDocument(senderId, receiverId, docTypeId, processId, null, testDocumentContent);
 
         // Assert
         ArgumentCaptor<AS4SendRequest> requestCaptor = ArgumentCaptor.forClass(AS4SendRequest.class);
@@ -233,7 +234,7 @@ class AS4SendControllerTest {
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
             .messageId("MSG-002")
-            .status("SENT")
+            .status(AS4SendStatus.SENT)
             .timestamp(System.currentTimeMillis())
             .build();
 
@@ -242,7 +243,7 @@ class AS4SendControllerTest {
 
         // Act
         ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, testDocumentContent);
+            senderId, receiverId, docTypeId, processId, null, testDocumentContent);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -250,7 +251,7 @@ class AS4SendControllerTest {
 
     @Test
     @DisplayName("Should validate receiver ID format (scheme::identifier)")
-    void testInvalidReceiverIdFormat() throws Exception {
+    void testInvalidReceiverIdFormat() {
         // Arrange - Invalid format: missing :: delimiter
         String senderId = "GLN::1234567890123";
         String receiverId = "GLN-9876543210987";  // Invalid format
@@ -259,7 +260,7 @@ class AS4SendControllerTest {
 
         // Act & Assert
         assertThrows(DocumentValidationException.class, () ->
-            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, null, testDocumentContent),
             "Should throw DocumentValidationException for invalid receiver ID format");
 
         // SML/SMP should not be called with invalid receiver ID
@@ -286,7 +287,7 @@ class AS4SendControllerTest {
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
             .messageId("DBNA-MSG-001")
-            .status("SENT")
+            .status(AS4SendStatus.SENT)
             .timestamp(System.currentTimeMillis())
             .build();
 
@@ -295,10 +296,11 @@ class AS4SendControllerTest {
 
         // Act
         ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, testDocumentContent);
+            senderId, receiverId, docTypeId, processId, null, testDocumentContent);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
         assertTrue(response.getBody().isSuccess());
 
         // Verify SML lookup was called
@@ -322,7 +324,7 @@ class AS4SendControllerTest {
 
         // Act & Assert
         assertThrows(SMLLookupException.class, () ->
-            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, null, testDocumentContent),
             "Should throw SMLLookupException when SML lookup returns null");
         
         // SMP should not be called if SML lookup fails
@@ -331,7 +333,7 @@ class AS4SendControllerTest {
 
     @Test
     @DisplayName("Should handle SML lookup exception")
-    void testSMLLookupException() throws Exception {
+    void testSMLLookupException() {
         // Arrange
         String senderId = "GLN::1234567890123";
         String receiverId = "GLN::9876543210987";
@@ -343,7 +345,7 @@ class AS4SendControllerTest {
 
         // Act & Assert
         assertThrows(SMLLookupException.class, () ->
-            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, null, testDocumentContent),
             "Should throw SMLLookupException when SML lookup fails");
     }
 
@@ -367,7 +369,7 @@ class AS4SendControllerTest {
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
             .messageId("DBNA-MSG-002")
-            .status("SENT")
+            .status(AS4SendStatus.SENT)
             .timestamp(System.currentTimeMillis())
             .build();
 
@@ -376,7 +378,7 @@ class AS4SendControllerTest {
 
         // Act
         ResponseEntity<AS4SendResponse> response = controller.sendDocument(
-            senderId, receiverId, docTypeId, processId, testDocumentContent);
+            senderId, receiverId, docTypeId, processId, null, testDocumentContent);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -410,7 +412,7 @@ class AS4SendControllerTest {
 
         // Act & Assert
         assertThrows(SMPDiscoveryException.class, () ->
-            controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent),
+            controller.sendDocument(senderId, receiverId, docTypeId, processId, null, testDocumentContent),
             "Should throw SMPDiscoveryException when service endpoint is not found");
         
         // AS4 service should not be called if SMP discovery fails
@@ -437,7 +439,7 @@ class AS4SendControllerTest {
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
             .messageId("DBNA-MSG-003")
-            .status("SENT")
+            .status(AS4SendStatus.SENT)
             .timestamp(System.currentTimeMillis())
             .build();
 
@@ -445,7 +447,7 @@ class AS4SendControllerTest {
             .thenReturn(successResponse);
 
         // Act
-        controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent);
+        controller.sendDocument(senderId, receiverId, docTypeId, processId, null, testDocumentContent);
 
         // Assert - Verify the endpoint URL was propagated to AS4SendRequest
         ArgumentCaptor<AS4SendRequest> requestCaptor = ArgumentCaptor.forClass(AS4SendRequest.class);
@@ -472,7 +474,7 @@ class AS4SendControllerTest {
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
             .messageId("DBNA-MSG-004")
-            .status("SENT")
+            .status(AS4SendStatus.SENT)
             .timestamp(System.currentTimeMillis())
             .build();
 
@@ -480,7 +482,7 @@ class AS4SendControllerTest {
             .thenReturn(successResponse);
 
         // Act
-        controller.sendDocument(senderId, receiverId, docTypeId, processId, testDocumentContent);
+        controller.sendDocument(senderId, receiverId, docTypeId, processId, null, testDocumentContent);
 
         // Assert - Verify DBNA PMode parameters
         ArgumentCaptor<AS4SendRequest> requestCaptor = ArgumentCaptor.forClass(AS4SendRequest.class);

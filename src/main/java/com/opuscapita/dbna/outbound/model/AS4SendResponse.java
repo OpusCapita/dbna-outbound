@@ -16,7 +16,7 @@ public class AS4SendResponse {
     
     private boolean success;
     private String messageId;
-    private String status;
+    private AS4SendStatus status;
     private String errorMessage;
     private String warningMessage;
     private long timestamp;

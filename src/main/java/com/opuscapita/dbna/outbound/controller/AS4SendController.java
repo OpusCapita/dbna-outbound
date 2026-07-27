@@ -32,9 +32,11 @@ import java.security.cert.X509Certificate;
 @RestController
 @RequestMapping("/api/as4")
 public class AS4SendController {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(AS4SendController.class);
-    
+
+    private static final String AGREEMENTS_ACCESS_POINT_URL = "https://dbnalliance.org/agreements/access_point.html";
+
     @Value("${dbna.smp.url:}")
     private String smpEndpointOverride;
 
@@ -222,7 +224,7 @@ public class AS4SendController {
                  .receiverCertificate(receiverCertificate)  // Include receiver certificate from SMP for truststore injection
                   .signMessage(true)  // PMode[1].Security - Message signing is mandatory for DBNA
                   .encryptMessage(true)  // Enable AS4-level encryption per DBNA spec - Messages are encrypted with receiver's certificate (AES-256-GCM). This is separate from HTTPS transport encryption.
-                  .agreementRef("https://dbnalliance.org/agreements/access_point.html")  // PMode.Agreement
+                  .agreementRef(AGREEMENTS_ACCESS_POINT_URL)  // PMode.Agreement
                  .build();
 
         // Step 6: Send document via AS4

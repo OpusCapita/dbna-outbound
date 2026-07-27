@@ -4,11 +4,13 @@ import com.helger.commons.mime.CMimeType;
 import com.helger.phase4.crypto.IAS4CryptoFactory;
 import com.helger.phase4.messaging.domain.MessageHelperMethods;
 import com.helger.phase4.sender.AS4Sender;
+import com.helger.phase4.sender.AbstractAS4UserMessageBuilder;
 import com.helger.phase4.attachment.AS4OutgoingAttachment;
 import com.helger.scope.mgr.ScopeManager;
 import com.opuscapita.dbna.outbound.config.AS4Configuration;
 import com.opuscapita.dbna.outbound.model.AS4SendRequest;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
+import com.opuscapita.dbna.outbound.model.AS4SendStatus;
 import com.opuscapita.dbna.outbound.model.AS4TransmissionResponse;
 import com.opuscapita.dbna.outbound.model.DummyResponse;
 import com.opuscapita.dbna.common.container.ContainerMessage;
@@ -27,7 +29,6 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
 /**
  * Service for sending UBL 2.3 documents via AS4 protocol to DBNA network with X.509 certificate support
@@ -56,7 +57,7 @@ import java.time.Instant;
 @Service
 public class AS4SendService implements SendService {
     private static final Logger logger = LoggerFactory.getLogger(AS4SendService.class);
-    
+
     // Dependencies injected via constructor
     private final Storage storage;
     private final UBLDocumentService ublDocumentService;
@@ -306,7 +307,7 @@ public class AS4SendService implements SendService {
                 logger.warn("UBL document content is required");
                 return responseBuilder
                     .success(false)
-                    .status("VALIDATION_FAILED")
+                    .status(AS4SendStatus.VALIDATION_FAILED)
                     .errorMessage("UBL document content is required")
                     .build();
             }
@@ -315,7 +316,7 @@ public class AS4SendService implements SendService {
                 logger.warn("Receiver endpoint URL is required");
                 return responseBuilder
                     .success(false)
-                    .status("VALIDATION_FAILED")
+                    .status(AS4SendStatus.VALIDATION_FAILED)
                     .errorMessage("Receiver endpoint URL is required")
                     .build();
             }
@@ -324,7 +325,7 @@ public class AS4SendService implements SendService {
                 logger.warn("Sender ID is required");
                 return responseBuilder
                     .success(false)
-                    .status("VALIDATION_FAILED")
+                    .status(AS4SendStatus.VALIDATION_FAILED)
                     .errorMessage("Sender ID is required")
                     .build();
             }
@@ -333,7 +334,7 @@ public class AS4SendService implements SendService {
                 logger.warn("Receiver ID is required");
                 return responseBuilder
                     .success(false)
-                    .status("VALIDATION_FAILED")
+                    .status(AS4SendStatus.VALIDATION_FAILED)
                     .errorMessage("Receiver ID is required")
                     .build();
             }
@@ -345,7 +346,7 @@ public class AS4SendService implements SendService {
                 logger.warn("Invalid UBL 2.3 document format: {}", e.getMessage());
                 return responseBuilder
                     .success(false)
-                    .status("VALIDATION_FAILED")
+                    .status(AS4SendStatus.VALIDATION_FAILED)
                     .errorMessage("Invalid UBL 2.3 document format: " + e.getMessage())
                     .build();
             }
@@ -504,7 +505,7 @@ public class AS4SendService implements SendService {
                       // Known Issue: If the receiver gets "Request body is required" error (400), it means
                       // Phase4 is not properly including the HTTP body in the POST request.
                       // This can happen if the repeatable HTTP entity is not being read correctly.
-                      Object sendResult = null;
+                      AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult sendResult;
                       try {
                           logger.debug("Calling Phase4 sendMessageAndCheckForReceipt()...");
                           logger.debug("Phase4 will now:");
@@ -519,8 +520,8 @@ public class AS4SendService implements SendService {
                           sendResult = builder.sendMessageAndCheckForReceipt();
                           long duration = System.currentTimeMillis() - startTime;
 
-                          logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} (type: {}) after {} ms",
-                              sendResult, sendResult.getClass().getSimpleName(), duration);
+                          logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} after {} ms",
+                              sendResult, duration);
                           logger.debug("HTTP transmission completed. Checking result status...");
                       } catch (Exception e) {
                            logger.error("Phase4 sendMessageAndCheckForReceipt() threw an exception", e);
@@ -530,8 +531,7 @@ public class AS4SendService implements SendService {
                            Throwable cause = e.getCause();
 
                             // If the root cause is a SAXParseException, it likely means we received non-XML content or malformed XML
-                            if (cause instanceof org.xml.sax.SAXParseException) {
-                                org.xml.sax.SAXParseException saxEx = (org.xml.sax.SAXParseException) cause;
+                            if (cause instanceof org.xml.sax.SAXParseException saxEx) {
                                 String saxErrorMsg = saxEx.getMessage() != null ? saxEx.getMessage() : "";
 
                                 // Handle empty or incomplete Receipt element (most common case with non-compliant endpoints)
@@ -549,7 +549,7 @@ public class AS4SendService implements SendService {
                                     return responseBuilder
                                         .success(true)
                                         .messageId(messageId)
-                                        .status("SENT_RECEIPT_MALFORMED")
+                                        .status(AS4SendStatus.SENT_RECEIPT_MALFORMED)
                                         .warningMessage("AS4 message sent successfully, but receiver's receipt was malformed (empty Receipt element). " +
                                             "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
                                             "The message delivery status is unknown.")
@@ -569,7 +569,7 @@ public class AS4SendService implements SendService {
                                     return responseBuilder
                                         .success(true)
                                         .messageId(messageId)
-                                        .status("SENT_RECEIPT_MALFORMED")
+                                        .status(AS4SendStatus.SENT_RECEIPT_MALFORMED)
                                         .warningMessage("AS4 message sent successfully, but receiver's receipt was malformed (invalid ReceiptChild element). " +
                                             "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
                                             "The message delivery status is unknown.")
@@ -585,7 +585,7 @@ public class AS4SendService implements SendService {
                                     return responseBuilder
                                         .success(true)
                                         .messageId(messageId)
-                                        .status("SENT_RECEIPT_INVALID")
+                                        .status(AS4SendStatus.SENT_RECEIPT_INVALID)
                                         .warningMessage("AS4 message sent successfully, but receiver's receipt failed schema validation. " +
                                             "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
                                             "The message delivery status is unknown.")
@@ -605,12 +605,12 @@ public class AS4SendService implements SendService {
                                    // 3. The endpoint is not a proper AS4 endpoint
                                    // We treat this as a transmission error since we can't verify receipt
                                    return responseBuilder
-                                       .success(false)
-                                       .status("TRANSMISSION_ERROR")
-                                       .errorMessage("AS4 message may have been sent, but receiver returned non-SOAP response. " +
-                                           "Endpoint may not support proper AS4 signal message receipts. " +
-                                           "This is common with REST/JSON endpoints instead of SOAP/AS4 endpoints.")
-                                       .build();
+                                        .success(false)
+                                        .status(AS4SendStatus.TRANSMISSION_ERROR)
+                                        .errorMessage("AS4 message may have been sent, but receiver returned non-SOAP response. " +
+                                            "Endpoint may not support proper AS4 signal message receipts. " +
+                                            "This is common with REST/JSON endpoints instead of SOAP/AS4 endpoints.")
+                                        .build();
                                }
                            }
 
@@ -619,7 +619,7 @@ public class AS4SendService implements SendService {
                                logger.error("CRITICAL: AS4 message send failed due to missing fields or configuration issues: {}", exMsg);
                                return responseBuilder
                                    .success(false)
-                                   .status("FAILED")
+                                   .status(AS4SendStatus.FAILED)
                                    .errorMessage("AS4 send failed: " + exMsg)
                                    .build();
                            }
@@ -635,40 +635,40 @@ public class AS4SendService implements SendService {
                             "This indicates the message was likely NOT sent.");
                         return responseBuilder
                             .success(false)
-                            .status("FAILED")
+                            .status(AS4SendStatus.FAILED)
                             .errorMessage("AS4 send failed: sendMessageAndCheckForReceipt() returned null")
                             .build();
                     }
 
                     // Check if the result indicates success
-                     // The enum constant for success is typically named SUCCESS
-                     String resultName = sendResult.toString();
-                     if (resultName.contains("SUCCESS")) {
-                         logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
-                         return responseBuilder
-                             .success(true)
-                             .messageId(messageId)
-                             .status("SENT")
-                             .build();
+                     // Use enum constant comparison instead of string matching for type safety
+                     logger.debug("AS4 send result: {}", sendResult);
+                      if (sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.SUCCESS) {
+                          logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
+                          return responseBuilder
+                              .success(true)
+                              .messageId(messageId)
+                              .status(AS4SendStatus.SENT)
+                              .build();
                      } else {
                          // Send failed - result indicates an error condition
-                         logger.error("CRITICAL: AS4 sendMessageAndCheckForReceipt() returned failure status: {}", resultName);
+                         logger.error("CRITICAL: AS4 sendMessageAndCheckForReceipt() returned failure status: {}", sendResult);
 
                          // Provide more specific error messages for known failure cases
                          String errorMsg;
-                         if (resultName.contains("TRANSPORT_ERROR")) {
+                         if (sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.TRANSPORT_ERROR) {
                              // TRANSPORT_ERROR often indicates response parsing issues (e.g., JSON instead of SOAP)
                              errorMsg = "AS4 message transmission failed: The receiving endpoint returned a non-SOAP response. " +
                                  "This typically indicates: (1) the endpoint is not a proper AS4 endpoint, " +
                                  "(2) the endpoint returned an error response in JSON/HTML format instead of SOAP, " +
                                  "or (3) there was a network/SSL issue. Check the endpoint URL and ensure it supports AS4.";
                          } else {
-                             errorMsg = String.format("AS4 send failed with status: %s", resultName);
+                             errorMsg = String.format("AS4 send failed with status: %s", sendResult);
                          }
 
                          return responseBuilder
                              .success(false)
-                             .status(resultName.contains("TRANSPORT_ERROR") ? "TRANSMISSION_ERROR" : "FAILED")
+                             .status(sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.TRANSPORT_ERROR ? AS4SendStatus.TRANSMISSION_ERROR : AS4SendStatus.FAILED)
                              .errorMessage(errorMsg)
                              .build();
                      }
@@ -701,7 +701,7 @@ public class AS4SendService implements SendService {
 
                 return responseBuilder
                     .success(false)
-                    .status("FAILED")
+                    .status(AS4SendStatus.FAILED)
                     .errorMessage("Failed to send message: " + errorMsg)
                     .build();
             }
@@ -709,7 +709,7 @@ public class AS4SendService implements SendService {
             logger.error("Error preparing AS4 message for DBNA network", e);
             return responseBuilder
                 .success(false)
-                .status("ERROR")
+                .status(AS4SendStatus.ERROR)
                 .errorMessage(e.getMessage())
                 .build();
         }
