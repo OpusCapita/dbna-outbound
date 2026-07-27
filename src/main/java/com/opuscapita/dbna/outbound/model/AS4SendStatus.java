@@ -14,6 +14,11 @@ public enum AS4SendStatus {
     VALIDATION_FAILED("VALIDATION_FAILED"),
 
     /**
+     * Document validation error (generic validation failure)
+     */
+    VALIDATION_ERROR("VALIDATION_ERROR"),
+
+    /**
      * AS4 message was sent successfully, but the receipt from the receiving endpoint
      * had a malformed structure (e.g., empty or incomplete Receipt element).
      * This indicates the remote endpoint may have a non-compliant AS4 implementation.
@@ -46,14 +51,39 @@ public enum AS4SendStatus {
     /**
      * AS4 message preparation or sending resulted in an unexpected error.
      */
-    ERROR("ERROR");
-    
+    ERROR("ERROR"),
+
+    /**
+     * SML (Service Metadata Locator) lookup error - receiver not found in registry
+     */
+    SML_LOOKUP_ERROR("SML_LOOKUP_ERROR"),
+
+    /**
+     * Resource not found (endpoint or service not available)
+     */
+    NOT_FOUND("NOT_FOUND"),
+
+    /**
+     * Internal server error - unexpected error during processing
+     */
+    INTERNAL_SERVER_ERROR("INTERNAL_SERVER_ERROR"),
+
+    /**
+     * SMP discovery error - service endpoint discovery failed
+     */
+    SMP_DISCOVERY_ERROR("SMP_DISCOVERY_ERROR"),
+
+    /**
+     * AS4 transmission error - message transmission failed
+     */
+    AS4_TRANSMISSION_ERROR("AS4_TRANSMISSION_ERROR");
+
     private final String value;
 
     AS4SendStatus(String value) {
         this.value = value;
     }
-
+    
     @Override
     public String toString() {
         return value;

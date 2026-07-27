@@ -2,6 +2,7 @@ package com.opuscapita.dbna.outbound.controller;
 
 import com.opuscapita.dbna.outbound.exception.DBNAException;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
+import com.opuscapita.dbna.outbound.model.AS4SendStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -34,9 +35,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<AS4SendResponse> handleDBNAException(DBNAException e) {
         logger.error("DBNA Exception [{}]: {}", e.getErrorCode(), e.getMessage());
         
+        // Map error code to appropriate status
+        AS4SendStatus status = mapErrorCodeToStatus(e.getErrorCode());
+
         AS4SendResponse errorResponse = AS4SendResponse.builder()
             .success(false)
-            .status(e.getErrorCode())
+            .status(status)
             .errorMessage(e.getMessage())
             .timestamp(System.currentTimeMillis())
             .build();
@@ -55,7 +59,7 @@ public class GlobalExceptionHandler {
         
         AS4SendResponse errorResponse = AS4SendResponse.builder()
             .success(false)
-            .status("SML_LOOKUP_ERROR")
+            .status(AS4SendStatus.SML_LOOKUP_ERROR)
             .errorMessage(userMessage)
             .timestamp(System.currentTimeMillis())
             .build();
@@ -72,7 +76,7 @@ public class GlobalExceptionHandler {
         
         AS4SendResponse errorResponse = AS4SendResponse.builder()
             .success(false)
-            .status("VALIDATION_ERROR")
+            .status(AS4SendStatus.VALIDATION_ERROR)
             .errorMessage(e.getMessage())
             .timestamp(System.currentTimeMillis())
             .build();
@@ -89,7 +93,7 @@ public class GlobalExceptionHandler {
         
         AS4SendResponse errorResponse = AS4SendResponse.builder()
             .success(false)
-            .status("NOT_FOUND")
+            .status(AS4SendStatus.NOT_FOUND)
             .errorMessage("Endpoint not found: " + e.getRequestURL())
             .timestamp(System.currentTimeMillis())
             .build();
@@ -107,7 +111,7 @@ public class GlobalExceptionHandler {
 
         AS4SendResponse errorResponse = AS4SendResponse.builder()
             .success(false)
-            .status("NOT_FOUND")
+            .status(AS4SendStatus.NOT_FOUND)
             .errorMessage("Static resource not found")
             .timestamp(System.currentTimeMillis())
             .build();
@@ -124,7 +128,7 @@ public class GlobalExceptionHandler {
         
         AS4SendResponse errorResponse = AS4SendResponse.builder()
             .success(false)
-            .status("INTERNAL_SERVER_ERROR")
+            .status(AS4SendStatus.INTERNAL_SERVER_ERROR)
             .errorMessage("Internal server error: An unexpected error occurred")
             .timestamp(System.currentTimeMillis())
             .build();
@@ -148,5 +152,17 @@ public class GlobalExceptionHandler {
             return "SML lookup failed: " + e.getMessage();
         }
     }
-}
 
+    /**
+     * Map error codes from exceptions to appropriate AS4SendStatus values
+     */
+    private AS4SendStatus mapErrorCodeToStatus(String errorCode) {
+        try {
+            return AS4SendStatus.valueOf(errorCode);
+        } catch (IllegalArgumentException e) {
+            // If the error code doesn't match any enum value, default to FAILED
+            logger.warn("Unknown error code '{}', defaulting to FAILED", errorCode);
+            return AS4SendStatus.FAILED;
+        }
+    }
+}

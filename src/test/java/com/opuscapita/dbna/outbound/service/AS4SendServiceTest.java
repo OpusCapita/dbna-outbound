@@ -101,6 +101,12 @@ class AS4SendServiceTest {
         ReflectionTestUtils.setField(as4SendService, "smpUrl", "");
         ReflectionTestUtils.setField(as4SendService, "maxRetryAttempts", 3);
         ReflectionTestUtils.setField(as4SendService, "retryDelayMs", 1000L);
+
+        // Mock SML and SMP service responses for all tests by default
+        lenient().when(smlLookupService.lookupSMPEndpoint(anyString(), anyString()))
+            .thenReturn("https://smp.example.com/");
+        lenient().when(smpService.discoverServiceEndpoint(anyString(), anyString(), anyString(), anyString()))
+            .thenReturn(new SMPServiceInfo("https://receiver.example.com/as4", null));
     }
 
     @Test
@@ -114,8 +120,8 @@ class AS4SendServiceTest {
         when(containerMessage.getMetadata()).thenReturn(metadata);
         when(storage.get(fileName)).thenReturn(inputStream);
         
-        when(metadata.getSenderId()).thenReturn("SENDER123");
-        when(metadata.getRecipientId()).thenReturn("RECEIVER456");
+        when(metadata.getSenderId()).thenReturn("GLN::1234567890123");
+        when(metadata.getRecipientId()).thenReturn("GLN::9876543210987");
         when(metadata.getMessageId()).thenReturn("MSG-789");
         when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:Invoice-2");
         when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:2017:poacc:billing:01:1.0");
@@ -270,11 +276,11 @@ class AS4SendServiceTest {
         when(containerMessage.getMetadata()).thenReturn(metadata);
         when(storage.get(fileName)).thenReturn(inputStream);
         
-        when(metadata.getSenderId()).thenReturn("SE123");
-        when(metadata.getRecipientId()).thenReturn("RE456");
+        when(metadata.getSenderId()).thenReturn("GLN::1111111111111");
+        when(metadata.getRecipientId()).thenReturn("GLN::2222222222222");
         when(metadata.getMessageId()).thenReturn("MSG-001");
-        when(metadata.getDocumentTypeIdentifier()).thenReturn("Invoice");
-        when(metadata.getProfileTypeIdentifier()).thenReturn("Billing");
+        when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:Invoice-2");
+        when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:2017:poacc:billing:01:1.0");
 
         // Act
         as4SendService.send(containerMessage);
@@ -311,11 +317,11 @@ class AS4SendServiceTest {
         when(containerMessage.getMetadata()).thenReturn(metadata);
         when(storage.get(fileName)).thenReturn(inputStream);
         
-        when(metadata.getSenderId()).thenReturn("SENDER");
-        when(metadata.getRecipientId()).thenReturn("RECEIVER");
+        when(metadata.getSenderId()).thenReturn("GLN::1234567890111");
+        when(metadata.getRecipientId()).thenReturn("GLN::9876543210222");
         when(metadata.getMessageId()).thenReturn("MSG");
-        when(metadata.getDocumentTypeIdentifier()).thenReturn("Invoice");
-        when(metadata.getProfileTypeIdentifier()).thenReturn("Billing");
+        when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:Invoice-2");
+        when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:2017:poacc:billing:01:1.0");
 
         // Act
         as4SendService.send(containerMessage);
@@ -336,11 +342,11 @@ class AS4SendServiceTest {
         when(containerMessage.getMetadata()).thenReturn(metadata);
         when(storage.get(fileName)).thenReturn(inputStream);
         
-        when(metadata.getSenderId()).thenReturn("DBNA-SENDER");
-        when(metadata.getRecipientId()).thenReturn("DBNA-RECEIVER");
+        when(metadata.getSenderId()).thenReturn("GLN::5412345000013");
+        when(metadata.getRecipientId()).thenReturn("GLN::5400000000001");
         when(metadata.getMessageId()).thenReturn("DBNA-MSG-001");
         when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:Invoice-2");
-        when(metadata.getProfileTypeIdentifier()).thenReturn("bdx:noprocess");
+        when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:2017:poacc:billing:01:1.0");
 
         // Act
         TransmissionResponse response = as4SendService.send(containerMessage);
@@ -362,8 +368,8 @@ class AS4SendServiceTest {
         when(containerMessage.getMetadata()).thenReturn(metadata);
         when(storage.get(fileName)).thenReturn(inputStream);
         
-        when(metadata.getSenderId()).thenReturn("BUYER");
-        when(metadata.getRecipientId()).thenReturn("SELLER");
+        when(metadata.getSenderId()).thenReturn("GLN::5412345000021");
+        when(metadata.getRecipientId()).thenReturn("GLN::5400000000008");
         when(metadata.getMessageId()).thenReturn("ORDER-MSG-001");
         when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:Order-2");
         when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:poacc:bis:ordering:3");
@@ -388,8 +394,8 @@ class AS4SendServiceTest {
         when(containerMessage.getMetadata()).thenReturn(metadata);
         when(storage.get(fileName)).thenReturn(inputStream);
         
-        when(metadata.getSenderId()).thenReturn("SHIPPER");
-        when(metadata.getRecipientId()).thenReturn("CONSIGNEE");
+        when(metadata.getSenderId()).thenReturn("GLN::5412345000038");
+        when(metadata.getRecipientId()).thenReturn("GLN::5400000000015");
         when(metadata.getMessageId()).thenReturn("DESPATCH-MSG-001");
         when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2");
         when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:poacc:bis:despatch_advice:3");
@@ -414,12 +420,12 @@ class AS4SendServiceTest {
         when(containerMessage.getMetadata()).thenReturn(metadata);
         when(storage.get(fileName)).thenReturn(inputStream);
         
-        when(metadata.getSenderId()).thenReturn("SENDER");
-        when(metadata.getRecipientId()).thenReturn("RECEIVER");
+        when(metadata.getSenderId()).thenReturn("GLN::1234567890111");
+        when(metadata.getRecipientId()).thenReturn("GLN::9876543210222");
         when(metadata.getMessageId()).thenReturn("INVALID-MSG");
-        when(metadata.getDocumentTypeIdentifier()).thenReturn("Invalid");
-        when(metadata.getProfileTypeIdentifier()).thenReturn("Invalid");
-        
+        when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:Invoice-2");
+        when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:2017:poacc:billing:01:1.0");
+
         // For this test, use the real sendAS4Message method so validation actually happens
         doCallRealMethod().when(as4SendService).sendAS4Message(any(AS4SendRequest.class));
         doThrow(new DocumentValidationException("Invalid UBL document"))
@@ -447,11 +453,11 @@ class AS4SendServiceTest {
         when(containerMessage.getMetadata()).thenReturn(metadata);
         when(storage.get(fileName)).thenReturn(inputStream);
 
-        when(metadata.getSenderId()).thenReturn("SENDER");
-        when(metadata.getRecipientId()).thenReturn("RECEIVER");
+        when(metadata.getSenderId()).thenReturn("GLN::1234567890111");
+        when(metadata.getRecipientId()).thenReturn("GLN::9876543210222");
         when(metadata.getMessageId()).thenReturn("MSG");
-        when(metadata.getDocumentTypeIdentifier()).thenReturn("Invoice");
-        when(metadata.getProfileTypeIdentifier()).thenReturn("Billing");
+        when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:Invoice-2");
+        when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:2017:poacc:billing:01:1.0");
 
         // Set receiver endpoint override
         ReflectionTestUtils.setField(as4SendService, "receiverEndpointOverride", "http://override.com/as4");
@@ -575,8 +581,8 @@ class AS4SendServiceTest {
         when(containerMessage.getMetadata()).thenReturn(metadata);
         when(storage.get(fileName)).thenReturn(inputStream);
 
-        when(metadata.getSenderId()).thenReturn("SENDER123");
-        when(metadata.getRecipientId()).thenReturn("RECEIVER456");
+        when(metadata.getSenderId()).thenReturn("GLN::1234567890123");
+        when(metadata.getRecipientId()).thenReturn("GLN::9876543210987");
         when(metadata.getMessageId()).thenReturn("MSG-12345");
         when(metadata.getDocumentTypeIdentifier()).thenReturn("urn:oasis:names:specification:ubl:schema:xsd:Invoice-2");
         when(metadata.getProfileTypeIdentifier()).thenReturn("urn:fdc:peppol.eu:2017:poacc:billing:01:1.0");

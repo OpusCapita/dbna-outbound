@@ -6,6 +6,7 @@ import com.opuscapita.dbna.outbound.exception.DocumentValidationException;
 import com.opuscapita.dbna.outbound.exception.SMLLookupException;
 import com.opuscapita.dbna.outbound.exception.SMPDiscoveryException;
 import com.opuscapita.dbna.outbound.model.AS4SendResponse;
+import com.opuscapita.dbna.outbound.model.AS4SendStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,7 +55,7 @@ class GlobalExceptionHandlerTest {
         assertEquals(400, response.getStatusCodeValue());
         assertNotNull(response.getBody());
         assertFalse(response.getBody().isSuccess());
-        assertEquals("TEST_ERROR", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.FAILED, response.getBody().getStatus());
         assertEquals("Test error message", response.getBody().getErrorMessage());
     }
 
@@ -69,7 +70,7 @@ class GlobalExceptionHandlerTest {
 
         // Assert
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), response.getStatusCodeValue());
-        assertEquals("SML_LOOKUP_ERROR", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.SML_LOOKUP_ERROR, response.getBody().getStatus());
         assertEquals("SML lookup failed", response.getBody().getErrorMessage());
     }
 
@@ -84,7 +85,7 @@ class GlobalExceptionHandlerTest {
 
         // Assert
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), response.getStatusCodeValue());
-        assertEquals("SMP_DISCOVERY_ERROR", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.SMP_DISCOVERY_ERROR, response.getBody().getStatus());
     }
 
     @Test
@@ -98,7 +99,7 @@ class GlobalExceptionHandlerTest {
 
         // Assert
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), response.getStatusCodeValue());
-        assertEquals("AS4_TRANSMISSION_ERROR", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.AS4_TRANSMISSION_ERROR, response.getBody().getStatus());
     }
 
     @Test
@@ -112,7 +113,7 @@ class GlobalExceptionHandlerTest {
 
         // Assert
         assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatusCodeValue());
-        assertEquals("VALIDATION_ERROR", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.VALIDATION_ERROR, response.getBody().getStatus());
     }
 
     // ======================== NamingException Tests ========================
@@ -128,7 +129,7 @@ class GlobalExceptionHandlerTest {
 
         // Assert
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), response.getStatusCodeValue());
-        assertEquals("SML_LOOKUP_ERROR", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.SML_LOOKUP_ERROR, response.getBody().getStatus());
         assertTrue(response.getBody().getErrorMessage().contains("not registered in the DBNA SML registry"));
     }
 
@@ -203,7 +204,7 @@ class GlobalExceptionHandlerTest {
 
         // Assert
         assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatusCodeValue());
-        assertEquals("VALIDATION_ERROR", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.VALIDATION_ERROR, response.getBody().getStatus());
         assertEquals("Invalid argument", response.getBody().getErrorMessage());
         assertFalse(response.getBody().isSuccess());
     }
@@ -222,7 +223,7 @@ class GlobalExceptionHandlerTest {
 
         // Assert
         assertEquals(HttpStatus.NOT_FOUND.value(), response.getStatusCodeValue());
-        assertEquals("NOT_FOUND", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.NOT_FOUND, response.getBody().getStatus());
         assertTrue(response.getBody().getErrorMessage().contains("Endpoint not found"));
         assertFalse(response.getBody().isSuccess());
     }
@@ -240,8 +241,8 @@ class GlobalExceptionHandlerTest {
 
         // Assert
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), response.getStatusCodeValue());
-        assertEquals("INTERNAL_SERVER_ERROR", response.getBody().getStatus());
-        assertEquals("Internal server error: An unexpected error occurred", 
+        assertEquals(AS4SendStatus.INTERNAL_SERVER_ERROR, response.getBody().getStatus());
+        assertEquals("Internal server error: An unexpected error occurred",
             response.getBody().getErrorMessage());
         assertFalse(response.getBody().isSuccess());
     }
@@ -257,7 +258,7 @@ class GlobalExceptionHandlerTest {
 
         // Assert
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), response.getStatusCodeValue());
-        assertEquals("INTERNAL_SERVER_ERROR", response.getBody().getStatus());
+        assertEquals(AS4SendStatus.INTERNAL_SERVER_ERROR, response.getBody().getStatus());
     }
 
     // ======================== Response Structure Tests ========================
