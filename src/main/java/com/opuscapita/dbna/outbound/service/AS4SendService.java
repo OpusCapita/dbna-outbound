@@ -529,46 +529,68 @@ public class AS4SendService implements SendService {
                            String exMsg = e.getMessage();
                            Throwable cause = e.getCause();
 
-                           // If the root cause is a SAXParseException, it likely means we received non-XML content or malformed XML
-                           if (cause instanceof org.xml.sax.SAXParseException) {
-                               org.xml.sax.SAXParseException saxEx = (org.xml.sax.SAXParseException) cause;
-                               String saxErrorMsg = saxEx.getMessage() != null ? saxEx.getMessage() : "";
+                            // If the root cause is a SAXParseException, it likely means we received non-XML content or malformed XML
+                            if (cause instanceof org.xml.sax.SAXParseException) {
+                                org.xml.sax.SAXParseException saxEx = (org.xml.sax.SAXParseException) cause;
+                                String saxErrorMsg = saxEx.getMessage() != null ? saxEx.getMessage() : "";
 
-                               // Handle malformed receipt with invalid ReceiptChild element (CVC schema validation errors)
-                               if (saxErrorMsg.contains("cvc-complex-type") && saxErrorMsg.contains("ReceiptChild")) {
-                                   logger.warn("Received malformed AS4 Receipt from endpoint with invalid structure. " +
-                                       "The endpoint sent a Receipt containing 'ReceiptChild' element which violates ebMS3 schema. " +
-                                       "This indicates the remote endpoint has a non-compliant AS4 implementation. " +
-                                       "Error details: {}", saxErrorMsg);
+                                // Handle empty or incomplete Receipt element (most common case with non-compliant endpoints)
+                                // Error: "cvc-complex-type.2.4.b: The content of element 'eb:Receipt' is not complete..."
+                                if (saxErrorMsg.contains("eb:Receipt") && saxErrorMsg.contains("not complete")) {
+                                    logger.warn("Received AS4 Receipt from endpoint with invalid/empty structure. " +
+                                        "The endpoint sent an empty or incomplete <eb:Receipt/> element which violates ebMS3 schema " +
+                                        "(Receipt must contain at least one child element with content). " +
+                                        "This indicates the remote endpoint has a non-compliant AS4 implementation. " +
+                                        "Error details: {}", saxErrorMsg);
 
-                                   // The AS4 message was likely sent successfully (HTTP 200+), but the receipt is malformed
-                                   // We treat this as a partial success: message sent, but receipt validation failed
-                                   // This is a known issue with some non-compliant AS4 endpoints
-                                   return responseBuilder
-                                       .success(true)
-                                       .messageId(messageId)
-                                       .status("SENT_RECEIPT_MALFORMED")
-                                       .warningMessage("AS4 message sent successfully, but receiver's receipt was malformed (invalid ReceiptChild element). " +
-                                           "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
-                                           "The message delivery status is unknown.")
-                                       .build();
-                               }
+                                    // The AS4 message was likely sent successfully (HTTP 200+), but the receipt is malformed
+                                    // We treat this as a partial success: message sent, but receipt validation failed
+                                    // This is a known issue with some non-compliant AS4 endpoints
+                                    return responseBuilder
+                                        .success(true)
+                                        .messageId(messageId)
+                                        .status("SENT_RECEIPT_MALFORMED")
+                                        .warningMessage("AS4 message sent successfully, but receiver's receipt was malformed (empty Receipt element). " +
+                                            "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
+                                            "The message delivery status is unknown.")
+                                        .build();
+                                }
 
-                               // Handle other schema validation errors in receipt
-                               if (saxErrorMsg.contains("cvc-") || saxErrorMsg.contains("xmldsig")) {
-                                   logger.warn("Received malformed AS4 Receipt from endpoint - schema validation error. " +
-                                       "This indicates the remote endpoint may have sent an invalid or non-compliant receipt. " +
-                                       "Error details: {}", saxErrorMsg);
+                                // Handle malformed receipt with invalid ReceiptChild element (CVC schema validation errors)
+                                if (saxErrorMsg.contains("cvc-complex-type") && saxErrorMsg.contains("ReceiptChild")) {
+                                    logger.warn("Received malformed AS4 Receipt from endpoint with invalid structure. " +
+                                        "The endpoint sent a Receipt containing 'ReceiptChild' element which violates ebMS3 schema. " +
+                                        "This indicates the remote endpoint has a non-compliant AS4 implementation. " +
+                                        "Error details: {}", saxErrorMsg);
 
-                                   return responseBuilder
-                                       .success(true)
-                                       .messageId(messageId)
-                                       .status("SENT_RECEIPT_INVALID")
-                                       .warningMessage("AS4 message sent successfully, but receiver's receipt failed schema validation. " +
-                                           "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
-                                           "The message delivery status is unknown.")
-                                       .build();
-                               }
+                                    // The AS4 message was likely sent successfully (HTTP 200+), but the receipt is malformed
+                                    // We treat this as a partial success: message sent, but receipt validation failed
+                                    // This is a known issue with some non-compliant AS4 endpoints
+                                    return responseBuilder
+                                        .success(true)
+                                        .messageId(messageId)
+                                        .status("SENT_RECEIPT_MALFORMED")
+                                        .warningMessage("AS4 message sent successfully, but receiver's receipt was malformed (invalid ReceiptChild element). " +
+                                            "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
+                                            "The message delivery status is unknown.")
+                                        .build();
+                                }
+
+                                // Handle other schema validation errors in receipt
+                                if (saxErrorMsg.contains("cvc-") || saxErrorMsg.contains("xmldsig")) {
+                                    logger.warn("Received malformed AS4 Receipt from endpoint - schema validation error. " +
+                                        "This indicates the remote endpoint may have sent an invalid or non-compliant receipt. " +
+                                        "Error details: {}", saxErrorMsg);
+
+                                    return responseBuilder
+                                        .success(true)
+                                        .messageId(messageId)
+                                        .status("SENT_RECEIPT_INVALID")
+                                        .warningMessage("AS4 message sent successfully, but receiver's receipt failed schema validation. " +
+                                            "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
+                                            "The message delivery status is unknown.")
+                                        .build();
+                                }
 
                                // Handle general non-XML or invalid XML responses
                                if (saxErrorMsg.contains("Content is not allowed in prolog")) {
