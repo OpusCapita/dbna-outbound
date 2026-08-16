@@ -80,7 +80,7 @@ class AS4SendControllerTest {
         
         // Mock SMP discovery
         when(smpService.discoverServiceEndpoint(smpEndpoint, receiverId, docTypeId, processId))
-            .thenReturn(new SMPServiceInfo(receiverEndpoint, null));
+            .thenReturn(new SMPServiceInfo(receiverEndpoint, null, null));
 
         // Mock AS4 send
         AS4SendResponse successResponse = AS4SendResponse.builder()
@@ -157,7 +157,7 @@ class AS4SendControllerTest {
         when(smlLookupService.lookupSMPEndpoint("GLN", "9876543210987"))
             .thenReturn(smpEndpoint);
         when(smpService.discoverServiceEndpoint(smpEndpoint, receiverId, docTypeId, processId))
-            .thenReturn(new SMPServiceInfo(receiverEndpoint, null));
+            .thenReturn(new SMPServiceInfo(receiverEndpoint, null, null));
 
         AS4SendResponse failureResponse = AS4SendResponse.builder()
             .success(false)
@@ -189,7 +189,7 @@ class AS4SendControllerTest {
         when(smlLookupService.lookupSMPEndpoint("GLN", "9876543210987"))
             .thenReturn(smpEndpoint);
         when(smpService.discoverServiceEndpoint(smpEndpoint, receiverId, docTypeId, processId))
-            .thenReturn(new SMPServiceInfo(receiverEndpoint, null));
+            .thenReturn(new SMPServiceInfo(receiverEndpoint, null, null));
 
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
@@ -229,7 +229,7 @@ class AS4SendControllerTest {
         when(smlLookupService.lookupSMPEndpoint("0192", "9876543210987"))
             .thenReturn(smpEndpoint);
         when(smpService.discoverServiceEndpoint(smpEndpoint, receiverId, docTypeId, processId))
-            .thenReturn(new SMPServiceInfo(receiverEndpoint, null));
+            .thenReturn(new SMPServiceInfo(receiverEndpoint, null, null));
 
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
@@ -282,7 +282,7 @@ class AS4SendControllerTest {
             .thenReturn(smpEndpoint);
         
         when(smpService.discoverServiceEndpoint(smpEndpoint, receiverId, docTypeId, processId))
-            .thenReturn(new SMPServiceInfo(receiverEndpoint, null));
+            .thenReturn(new SMPServiceInfo(receiverEndpoint, null, null));
         
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
@@ -364,7 +364,7 @@ class AS4SendControllerTest {
             .thenReturn(smpEndpoint);
         
         when(smpService.discoverServiceEndpoint(smpEndpoint, receiverId, docTypeId, processId))
-            .thenReturn(new SMPServiceInfo(receiverEndpoint, null));
+            .thenReturn(new SMPServiceInfo(receiverEndpoint, null, null));
         
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
@@ -434,7 +434,7 @@ class AS4SendControllerTest {
             .thenReturn(smpEndpoint);
         
         when(smpService.discoverServiceEndpoint(smpEndpoint, receiverId, docTypeId, processId))
-            .thenReturn(new SMPServiceInfo(receiverEndpoint, null));
+            .thenReturn(new SMPServiceInfo(receiverEndpoint, null, null));
         
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)
@@ -469,7 +469,7 @@ class AS4SendControllerTest {
         String receiverEndpoint = "https://receiver.example.com/as4";
 
         when(smlLookupService.lookupSMPEndpoint(any(), any())).thenReturn(smpEndpoint);
-        when(smpService.discoverServiceEndpoint(any(), any(), any(), any())).thenReturn(new SMPServiceInfo(receiverEndpoint, null));
+        when(smpService.discoverServiceEndpoint(any(), any(), any(), any())).thenReturn(new SMPServiceInfo(receiverEndpoint, null, null));
         
         AS4SendResponse successResponse = AS4SendResponse.builder()
             .success(true)

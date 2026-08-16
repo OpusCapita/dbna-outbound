@@ -32,7 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 /**
  * Service for sending UBL 2.3 documents via AS4 protocol to DBNA network with X.509 certificate support
- * 
+ *
  * This service uses the Phase4 library with the DBNA Profile module:
  * - phase4-lib:2.5.0 - Core AS4 messaging implementation
  * - phase4-profile-dbnalliance:2.9.3 - DBNA-specific PMode definitions (auto-discovered by Phase4)
@@ -114,11 +114,11 @@ public class AS4SendService implements SendService {
         this.smpService = smpService;
         this.truststoreManager = truststoreManager;
     }
-    
+
     /**
      * Implementation of SendService interface method
      * Sends a message from the queue consumer integration
-     * 
+     *
      * @param cm The container message from the Peppol queue
      * @return TransmissionResponse from the AS4 send operation
      * @throws Exception if sending fails
@@ -131,7 +131,7 @@ public class AS4SendService implements SendService {
 
         // Check for test error scenarios
         DummyResponse.throwExceptionIfExpectedInFilename(cm);
-        
+
         // Read UBL document content from storage
         String ublContent;
         try (InputStream inputStream = storage.get(cm.getFileName())) {
@@ -140,7 +140,7 @@ public class AS4SendService implements SendService {
             }
             ublContent = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
         }
-        
+
         // Determine receiver endpoint URL and certificate
         SMPServiceInfo serviceInfo = resolveReceiverServiceInfo(
             cm.getMetadata().getRecipientId(),
@@ -154,6 +154,7 @@ public class AS4SendService implements SendService {
               .receiverEndpointUrl(serviceInfo.getEndpointUrl())
               .senderId(cm.getMetadata().getSenderId())
               .receiverId(cm.getMetadata().getRecipientId())
+                 .service(serviceInfo.getServiceReference())
               .conversationId(cm.getMetadata().getMessageId())
               .documentType(cm.getMetadata().getDocumentTypeIdentifier())
               .processId(cm.getMetadata().getProfileTypeIdentifier())
@@ -162,26 +163,26 @@ public class AS4SendService implements SendService {
                .receiverCertificate(serviceInfo.getReceiverCertificate())  // Add receiver certificate for truststore injection
               .build();
 
-        logger.info("Sending AS4 message for file: {} to endpoint: {}", 
+        logger.info("Sending AS4 message for file: {} to endpoint: {}",
             cm.getFileName(), request.getReceiverEndpointUrl());
-        
+
         // Send via AS4 protocol
         AS4SendResponse as4Response = sendAS4Message(request);
-        
+
         // Convert to TransmissionResponse
         AS4TransmissionResponse response = new AS4TransmissionResponse(as4Response);
-        
+
         if (!as4Response.isSuccess()) {
             logger.error("AS4 transmission failed for {}: {}", cm.getFileName(), as4Response.getErrorMessage());
             throw new Exception("AS4 transmission failed: " + as4Response.getErrorMessage());
         }
-        
-        logger.info("AS4 transmission successful for {} with message ID: {}", 
+
+        logger.info("AS4 transmission successful for {} with message ID: {}",
             cm.getFileName(), as4Response.getMessageId());
-        
+
         return response;
     }
-    
+
     /**
      * Resolves the receiver service information (endpoint + certificate) by querying SMP
      *
@@ -250,7 +251,7 @@ public class AS4SendService implements SendService {
             finalEndpointUrl, serviceInfo.hasCertificateInfo());
 
         // Create new SMPServiceInfo with final endpoint URL and SMP certificate
-        SMPServiceInfo finalServiceInfo = new SMPServiceInfo(finalEndpointUrl, serviceInfo.getReceiverCertificate());
+        SMPServiceInfo finalServiceInfo = new SMPServiceInfo(finalEndpointUrl, serviceInfo.getReceiverCertificate(), serviceInfo.getServiceReference());
 
         // Inject receiver certificate into truststore if available
         if (finalServiceInfo.hasCertificateInfo()) {
@@ -299,9 +300,9 @@ public class AS4SendService implements SendService {
             AS4SendRequest request,
             AS4SendResponse.AS4SendResponseBuilder responseBuilder) {
         try {
-            logger.info("Preparing to send UBL 2.3 document via AS4 to DBNA network: {}", 
+            logger.info("Preparing to send UBL 2.3 document via AS4 to DBNA network: {}",
                 request.getReceiverEndpointUrl());
-            
+
             // Validate request parameters
             if (request.getUblDocumentContent() == null || request.getUblDocumentContent().trim().isEmpty()) {
                 logger.warn("UBL document content is required");
@@ -311,7 +312,7 @@ public class AS4SendService implements SendService {
                     .errorMessage("UBL document content is required")
                     .build();
             }
-            
+
             if (!isValidEndpointUrl(request.getReceiverEndpointUrl())) {
                 logger.warn("Receiver endpoint URL is required");
                 return responseBuilder
@@ -320,7 +321,7 @@ public class AS4SendService implements SendService {
                     .errorMessage("Receiver endpoint URL is required")
                     .build();
             }
-            
+
             if (!isValidString(request.getSenderId())) {
                 logger.warn("Sender ID is required");
                 return responseBuilder
@@ -329,7 +330,7 @@ public class AS4SendService implements SendService {
                     .errorMessage("Sender ID is required")
                     .build();
             }
-            
+
             if (!isValidString(request.getReceiverId())) {
                 logger.warn("Receiver ID is required");
                 return responseBuilder
@@ -338,7 +339,7 @@ public class AS4SendService implements SendService {
                     .errorMessage("Receiver ID is required")
                     .build();
             }
-            
+
             // Validate UBL document
             try {
                 ublDocumentService.validateUBLDocument(request.getUblDocumentContent());
@@ -365,12 +366,12 @@ public class AS4SendService implements SendService {
             Element ublElement = xmlBuilder.parse(
                 new StringInputStream(request.getUblDocumentContent(), StandardCharsets.UTF_8)
             ).getDocumentElement();
-            
+
             // Verify certificate configuration
             if (!as4Configuration.isKeystoreConfigured()) {
                 logger.warn("AS4 keystore not configured. Message signing may fail.");
             }
-            
+
             if (request.isSignMessage() && !as4Configuration.isKeystoreConfigured()) {
                 logger.warn("Message signing requested but AS4 keystore not configured.");
             }
@@ -430,8 +431,8 @@ public class AS4SendService implements SendService {
                     logger.debug("  - Data size: {} bytes", ublBytes.length);
                     logger.debug("  - Compression: GZIP");
                     logger.debug("  - MIME type: application/xml");
-                    logger.debug("  - Service: urn:oasis:names:tc:ebxml-msg:service");
-                    logger.debug("  - Action: Send");
+                    logger.debug("  - Service: {}", request.getService());
+                    logger.debug("  - Action: {}", request.getAction());
                     logger.debug("  - From Party: {}", fromParty);
                     logger.debug("  - To Party: {}", toParty);
                     logger.debug("  - Endpoint: {}", request.getReceiverEndpointUrl());
@@ -722,7 +723,7 @@ public class AS4SendService implements SendService {
     public int getRetryCount() {
         return maxRetryAttempts;
     }
-    
+
     /**
      * Override retry delay from SendService interface
      */
@@ -789,9 +790,13 @@ public class AS4SendService implements SendService {
                 .toPartyID(toParty)
                 .toRole(toPartyRole)
                 // Service - Required for AS4 user message (standard OASIS ebMS service)
-                .service("urn:oasis:names:tc:ebxml-msg:service")
+                // Per OASIS ebMS3 and DBNA spec: Service contains the Process Identifier
+                // The type attribute is extracted from the processId (scheme prefix before ::)
+                // Per OASIS ebMS3 CollaborationInfo: Service holds the process identifier with optional type attribute
+                .service(request.getService(), extractServiceTypeFromProcessId(request.getService()))
                 // Action - Required for AS4 user message (standard send action)
-                .action("Send")
+                // Per OASIS ebMS3 and DBNA spec: Action contains the Document Type Identifier
+                .action(request.getAction())
                 // Agreement reference if provided
                 .agreementRef(request.getAgreementRef())
                 // Endpoint URL - Required (where to send the message)
@@ -827,6 +832,38 @@ public class AS4SendService implements SendService {
 
             return builder;
         }
+
+    /**
+     * Extracts the scheme/type prefix from an identifier that uses the pattern: scheme::value
+     * Used for both document types and process identifiers in OASIS ebMS3.
+     *
+     * Per OASIS ebMS3 spec: Both Action and Service elements can have a type attribute.
+     * For DBN Alliance:
+     * - Action contains Document Type ID with format: scheme::identifier##profile
+     * - Service contains Process ID with format: scheme::identifier
+     *
+     * This method extracts the scheme prefix (e.g., "bdx-docid-qns" or "bdx-procid-qns")
+     *
+     * @param identifier The full identifier (document type or process ID)
+     * @return The scheme prefix (type), or null if not found
+     */
+    private String extractServiceTypeFromProcessId(String identifier) {
+        if (identifier == null || identifier.trim().isEmpty()) {
+            logger.warn("Process identifier is null or empty, service type will not be set");
+            return null;
+        }
+        
+        // Extract the scheme part before the first ::
+        int separatorIndex = identifier.indexOf("::");
+        if (separatorIndex > 0) {
+            String serviceType = identifier.substring(0, separatorIndex);
+            logger.debug("Extracted service type '{}' from identifier '{}'", serviceType, identifier);
+            return serviceType;
+        } else {
+            logger.debug("Identifier does not contain '::' separator, using entire value as service type: {}", identifier);
+            return identifier;
+        }
+    }
 
     /**
      * Helper method to validate that a string is not null or empty.

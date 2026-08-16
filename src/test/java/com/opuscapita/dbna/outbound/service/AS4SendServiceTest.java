@@ -106,7 +106,7 @@ class AS4SendServiceTest {
         lenient().when(smlLookupService.lookupSMPEndpoint(anyString(), anyString()))
             .thenReturn("https://smp.example.com/");
         lenient().when(smpService.discoverServiceEndpoint(anyString(), anyString(), anyString(), anyString()))
-            .thenReturn(new SMPServiceInfo("https://receiver.example.com/as4", null));
+            .thenReturn(new SMPServiceInfo("https://receiver.example.com/as4", null, serviceReference));
     }
 
     @Test
@@ -529,7 +529,7 @@ class AS4SendServiceTest {
         when(smlLookupService.lookupSMPEndpoint("GLN", "1234567890"))
             .thenReturn("https://smp.example.com/");
         when(smpService.discoverServiceEndpoint("https://smp.example.com/", "GLN::1234567890", "Invoice", "Billing"))
-            .thenReturn(new SMPServiceInfo("https://receiver.example.com/as4", null));
+            .thenReturn(new SMPServiceInfo("https://receiver.example.com/as4", null, serviceReference));
 
         // Act
         as4SendService.send(containerMessage);
@@ -560,7 +560,7 @@ class AS4SendServiceTest {
         ReflectionTestUtils.setField(as4SendService, "smpUrl", "https://configured-smp.example.com/");
 
         when(smpService.discoverServiceEndpoint("https://configured-smp.example.com/", "GLN::1234567890", "Invoice", "Billing"))
-            .thenReturn(new SMPServiceInfo("https://receiver.example.com/as4", null));
+            .thenReturn(new SMPServiceInfo("https://receiver.example.com/as4", null, serviceReference));
 
         // Act
         as4SendService.send(containerMessage);

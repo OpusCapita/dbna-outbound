@@ -22,7 +22,7 @@ import java.security.cert.X509Certificate;
 
 /**
  * REST Controller for sending UBL documents via AS4 over DBNA network
- * 
+ * <p>
  * Implements full DBNA network requirements:
  * - SML (Service Metadata Locator) queries for participant discovery
  * - SMP (Service Metadata Publishing) queries for endpoint discovery
@@ -68,20 +68,20 @@ public class AS4SendController {
         this.certificateValidationService = certificateValidationService;
         this.ublDocumentService = ublDocumentService;
     }
-    
+
     /**
      * Send UBL document via AS4 protocol over DBNA network
-     *
+     * <p>
      * Process:
      * 1. Validate document content
      * 2. Query SML to discover receiver's SMP endpoint
      * 3. Query SMP to discover service endpoint and validate certificate
      * 4. Send document via AS4 with X.509 certificate signing
-     * 
-     * @param senderId Sender party identifier (scheme::id)
-     * @param receiverId Receiver party identifier (scheme::id)
-     * @param docTypeId Document type identifier
-     * @param processId Business process identifier
+     *
+     * @param senderId        Sender party identifier (scheme::id)
+     * @param receiverId      Receiver party identifier (scheme::id)
+     * @param docTypeId       Document type identifier
+     * @param processId       Business process identifier
      * @param documentContent UBL XML document content
      * @return AS4SendResponse with transmission details
      */
@@ -98,17 +98,17 @@ public class AS4SendController {
         validateApiToken(authHeader);
 
         logger.info("\n======== DOCUMENT SEND REQUEST =========\n" +
-            "  Sender ID:      {}\n" +
-            "  Receiver ID:    {}\n" +
-            "  Document Type:  {}\n" +
-            "  Process ID:     {}\n" +
-            "  Document Size:  {} bytes\n" +
-            "========================================",
+                        "  Sender ID:      {}\n" +
+                        "  Receiver ID:    {}\n" +
+                        "  Document Type:  {}\n" +
+                        "  Process ID:     {}\n" +
+                        "  Document Size:  {} bytes\n" +
+                        "========================================",
 
-            senderId, receiverId, docTypeId, processId,
-            documentContent != null ? documentContent.length() : 0);
+                senderId, receiverId, docTypeId, processId,
+                documentContent != null ? documentContent.length() : 0);
         logger.debug("Document content preview (first 200 chars): {}",
-            documentContent != null && documentContent.length() > 200 ? documentContent.substring(0, 200) + "..." : documentContent);
+                documentContent != null && documentContent.length() > 200 ? documentContent.substring(0, 200) + "..." : documentContent);
 
         // Step 1: Validate document is valid UBL 2.3 XML
         logger.info("Step 1: Validating document is valid UBL 2.3 XML");
@@ -122,13 +122,13 @@ public class AS4SendController {
         if (receiverParts.length != 2) {
             throw new DocumentValidationException("Receiver ID must be in format: scheme::identifier");
         }
-        
+
         String receiverScheme = receiverParts[0];
         String receiverIdentifier = receiverParts[1];
-        
+
         // Step 2: Query SML to discover receiver's SMP endpoint
         logger.info("Step 2: Querying SML for receiver's SMP endpoint - Scheme: {}, Identifier: {}",
-            receiverScheme, receiverIdentifier);
+                receiverScheme, receiverIdentifier);
         String smpEndpoint;
         // Override SMP endpoint if configured via property
         if (smpEndpointOverride != null && !smpEndpointOverride.trim().isEmpty()) {
@@ -150,26 +150,26 @@ public class AS4SendController {
                 throw new SMLLookupException("Failed to query SML for receiver endpoint: " + e.getMessage(), e);
             }
         }
-        
+
         // Step 3: Query SMP to discover service endpoint and receiver certificate
         logger.info("Step 3: Querying SMP for service endpoint - DocTypeId: {}, ProcessId: {}",
-            docTypeId, processId);
+                docTypeId, processId);
         SMPServiceInfo serviceInfo;
 
         try {
             serviceInfo = smpService.discoverServiceEndpoint(
-                smpEndpoint,
-                receiverId,
-                docTypeId,
-                processId
+                    smpEndpoint,
+                    receiverId,
+                    docTypeId,
+                    processId
             );
             if (serviceInfo == null) {
                 throw new SMPDiscoveryException(
-                    String.format("Service endpoint not found for document type: %s, process: %s",
-                        docTypeId, processId));
+                        String.format("Service endpoint not found for document type: %s, process: %s",
+                                docTypeId, processId));
             }
             logger.info("SMP discovery successful - Receiver endpoint: {} (certificate available: {})",
-                serviceInfo.getEndpointUrl(), serviceInfo.hasCertificateInfo());
+                    serviceInfo.getEndpointUrl(), serviceInfo.hasCertificateInfo());
         } catch (SMPDiscoveryException e) {
             throw e;
         } catch (Exception e) {
@@ -181,7 +181,7 @@ public class AS4SendController {
             logger.info("Using configured receiver endpoint override: {}", receiverEndpointOverride);
             serviceInfo.setEndpointUrl(receiverEndpointOverride);
         }
-        
+
         String receiverEndpointUrl = serviceInfo.getEndpointUrl();
         X509Certificate receiverCertificate = serviceInfo.getReceiverCertificate();
 
@@ -195,14 +195,14 @@ public class AS4SendController {
         if (receiverCertificate != null) {
             try {
                 CertificateValidationService.CertificateValidationResult validationResult =
-                    certificateValidationService.validateForDBNA(receiverCertificate);
+                        certificateValidationService.validateForDBNA(receiverCertificate);
 
                 if (!validationResult.valid) {
                     throw new SMPDiscoveryException(
-                        "Receiver certificate validation failed: " + validationResult.expirationError);
+                            "Receiver certificate validation failed: " + validationResult.expirationError);
                 }
                 logger.info("Receiver certificate validated successfully - Subject: {}, will be used for local encryption",
-                    receiverCertificate.getSubjectX500Principal());
+                        receiverCertificate.getSubjectX500Principal());
             } catch (Exception e) {
                 logger.warn("Failed to validate receiver certificate: {}", e.getMessage());
                 // Don't fail here - continue with endpoint validation at TLS level
@@ -211,27 +211,29 @@ public class AS4SendController {
             logger.warn("No receiver certificate available from SMP for message encryption");
         }
 
-         // Step 5: Build AS4SendRequest with DBNA PMode parameters
-         // Per DBNA spec: We sign with our certificate, receiver will validate using our certificate from SMP
-         logger.info("Step 5: Preparing AS4 message with DBNA PMode parameters");
-         AS4SendRequest request = AS4SendRequest.builder()
-                 .senderId(senderId)
-                 .receiverId(receiverId)
-                 .documentType(docTypeId)
-                 .processId(processId)
-                 .ublDocumentContent(documentContent)
-                 .receiverEndpointUrl(receiverEndpointUrl)
-                 .receiverCertificate(receiverCertificate)  // Include receiver certificate from SMP for truststore injection
-                  .signMessage(true)  // PMode[1].Security - Message signing is mandatory for DBNA
-                  .encryptMessage(true)  // Enable AS4-level encryption per DBNA spec - Messages are encrypted with receiver's certificate (AES-256-GCM). This is separate from HTTPS transport encryption.
-                  .agreementRef(AGREEMENTS_ACCESS_POINT_URL)  // PMode.Agreement
-                 .build();
+        // Step 5: Build AS4SendRequest with DBNA PMode parameters
+        // Per DBNA spec: We sign with our certificate, receiver will validate using our certificate from SMP
+        logger.info("Step 5: Preparing AS4 message with DBNA PMode parameters");
+        AS4SendRequest request = AS4SendRequest.builder()
+                .senderId(senderId)
+                .receiverId(receiverId)
+                .documentType(docTypeId)
+                .processId(processId)
+                .service(processId)
+                .action(docTypeId)
+                .ublDocumentContent(documentContent)
+                .receiverEndpointUrl(receiverEndpointUrl)
+                .receiverCertificate(receiverCertificate)  // Include receiver certificate from SMP for truststore injection
+                .signMessage(true)  // PMode[1].Security - Message signing is mandatory for DBNA
+                .encryptMessage(true)  // Enable AS4-level encryption per DBNA spec - Messages are encrypted with receiver's certificate (AES-256-GCM). This is separate from HTTPS transport encryption.
+                .agreementRef(AGREEMENTS_ACCESS_POINT_URL)  // PMode.Agreement
+                .build();
 
         // Step 6: Send document via AS4
         logger.info("Step 6: Sending UBL document via AS4 protocol to DBNA network");
         try {
             AS4SendResponse response = as4SendService.sendAS4Message(request);
-            
+
             if (response.isSuccess()) {
                 logger.info("AS4 transmission successful - MessageID: {}", response.getMessageId());
                 return ResponseEntity.ok(response);

@@ -93,7 +93,7 @@ public class SMPService {
             X509Certificate receiverCert = extractCertificateFromXML(serviceMetadataXml);
 
             if (endpoint != null) {
-                SMPServiceInfo serviceInfo = new SMPServiceInfo(endpoint, receiverCert);
+                SMPServiceInfo serviceInfo = new SMPServiceInfo(endpoint, receiverCert, serviceReference);
                 logger.info("Successfully discovered service endpoint: {} with certificate available: {}",
                     endpoint, (receiverCert != null));
                 return serviceInfo;
