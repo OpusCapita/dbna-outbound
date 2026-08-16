@@ -69,6 +69,8 @@ class AS4SendServiceTest {
 
     private String testUblContent;
 
+    private String serviceReference;
+
     @BeforeEach
     void setUp() throws Exception {
         // Create a real instance first
@@ -80,6 +82,9 @@ class AS4SendServiceTest {
         // Load actual UBL test file
         testUblContent = TestResourceLoader.loadTestInvoice();
         
+        // Initialize test service reference (mock process identifier)
+        serviceReference = "bdx-procid-qns::urn:fdc:peppol.eu:2017:busdocs:maindoc:invoice:ver1.0";
+
         // Mock UBL validation to do nothing by default (void method, can be overridden in individual tests)
         lenient().doNothing().when(ublDocumentService).validateUBLDocument(anyString());
 
