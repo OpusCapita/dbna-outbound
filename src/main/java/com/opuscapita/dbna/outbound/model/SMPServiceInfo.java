@@ -29,6 +29,12 @@ public class SMPServiceInfo {
     private final String serviceReference;
     private final X509Certificate receiverCertificate;
 
+    @Setter
+    private String serviceGroupXml;
+
+    @Setter
+    private String serviceMetadataXml;
+
     public SMPServiceInfo(String endpointUrl, X509Certificate receiverCertificate, String serviceReference) {
         this.endpointUrl = Objects.requireNonNull(endpointUrl, "Endpoint URL is required");
         this.receiverCertificate = receiverCertificate;  // Certificate may be null if not in SMP
@@ -42,7 +48,3 @@ public class SMPServiceInfo {
         return receiverCertificate != null;
     }
 }
-
-
-
-

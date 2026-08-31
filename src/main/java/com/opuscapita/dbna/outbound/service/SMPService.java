@@ -75,7 +75,19 @@ public class SMPService {
         
         try {
             // Step 1: Query ServiceGroup to acquire the exact serviceReference for the requested document type
-            String serviceReference = getServiceReferenceFromServiceGroup(smpEndpoint, participantId, documentTypeId);
+            String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
+            logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
+
+            String serviceGroupXml = null;
+            String serviceReference = null;
+            try {
+                serviceGroupXml = executeHttpGet(serviceGroupUrl);
+                logger.debug("ServiceGroup resource retrieved successfully");
+                serviceReference = extractServiceReferenceFromServiceGroup(serviceGroupXml, documentTypeId);
+            } catch (Exception e) {
+                logger.warn("Failed to retrieve ServiceGroup resource: {}", e.getMessage());
+            }
+
             if (serviceReference == null) {
                 logger.warn("Document type {} not supported by participant {}", documentTypeId, participantId);
                 return null;
@@ -94,6 +106,8 @@ public class SMPService {
 
             if (endpoint != null) {
                 SMPServiceInfo serviceInfo = new SMPServiceInfo(endpoint, receiverCert, serviceReference);
+                serviceInfo.setServiceGroupXml(serviceGroupXml);
+                serviceInfo.setServiceMetadataXml(serviceMetadataXml);
                 logger.info("Successfully discovered service endpoint: {} with certificate available: {}",
                     endpoint, (receiverCert != null));
                 return serviceInfo;
