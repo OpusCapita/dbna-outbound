@@ -121,58 +121,33 @@ public class QueryController {
     /**
      * Query SMP for service endpoints and certificate information
      * <p>
-     * Accepts participant ID in either format:
-     * - Full format: "scheme::identifier" as a query parameter
-     * - Split format: separate "scheme" and "participantId" query parameters
+     * If smpEndpoint is not provided, attempts to discover it via SML using participantId.
+     * If documentTypeId and processId are provided, queries for specific service endpoint.
+     * If either is omitted, returns all available document types and processes.
      *
-     * @param smpEndpoint The SMP endpoint URL
-     * @param participantId Full participant ID (scheme::identifier) - optional if scheme and participantId are provided separately
-     * @param scheme Participant identifier scheme (e.g., "GLN", "0192") - required if participantId is not provided
+     * @param smpEndpoint The SMP endpoint URL (optional - will be discovered via SML if not provided)
+     * @param participantId Full participant ID in format "scheme::identifier" (required unless smpEndpoint is provided)
+     * @param scheme Participant identifier scheme - required if participantId is not provided
      * @param identifier Participant identifier - required if participantId is not provided
-     * @param documentTypeId Document type identifier (required)
-     * @param processId Business process identifier (required)
+     * @param documentTypeId Document type identifier (optional)
+     * @param processId Business process identifier (optional)
      * @return Map containing service endpoint URL and certificate information
      */
     @GetMapping("/smp")
     public ResponseEntity<Map<String, Object>> querySMP(
-            @RequestParam(value = "smpEndpoint") String smpEndpoint,
+            @RequestParam(value = "smpEndpoint", required = false) String smpEndpoint,
             @RequestParam(value = "participantId", required = false) String participantId,
             @RequestParam(value = "scheme", required = false) String scheme,
             @RequestParam(value = "identifier", required = false) String identifier,
-            @RequestParam(value = "documentTypeId") String documentTypeId,
-            @RequestParam(value = "processId") String processId) {
+            @RequestParam(value = "documentTypeId", required = false) String documentTypeId,
+            @RequestParam(value = "processId", required = false) String processId) {
 
         logger.info("Received SMP query - smpEndpoint: {}, participantId: {}, scheme: {}, identifier: {}, documentTypeId: {}, processId: {}",
                 smpEndpoint, participantId, scheme, identifier, documentTypeId, processId);
 
         try {
-            // Validate required parameters
-            if (smpEndpoint == null || smpEndpoint.trim().isEmpty()) {
-                logger.warn("Missing required parameter: smpEndpoint");
-                return ResponseEntity.badRequest().body(Map.of(
-                        "error", "Missing required parameter",
-                        "message", "Parameter 'smpEndpoint' is required"
-                ));
-            }
-
-            if (documentTypeId == null || documentTypeId.trim().isEmpty()) {
-                logger.warn("Missing required parameter: documentTypeId");
-                return ResponseEntity.badRequest().body(Map.of(
-                        "error", "Missing required parameter",
-                        "message", "Parameter 'documentTypeId' is required"
-                ));
-            }
-
-            if (processId == null || processId.trim().isEmpty()) {
-                logger.warn("Missing required parameter: processId");
-                return ResponseEntity.badRequest().body(Map.of(
-                        "error", "Missing required parameter",
-                        "message", "Parameter 'processId' is required"
-                ));
-            }
-
-            String lookupScheme;
-            String lookupIdentifier;
+            String lookupScheme = null;
+            String lookupIdentifier = null;
 
             // Resolve scheme and identifier from parameters
             if (participantId != null && !participantId.trim().isEmpty()) {
@@ -192,24 +167,113 @@ public class QueryController {
                 // Use separate scheme and identifier parameters
                 lookupScheme = scheme;
                 lookupIdentifier = identifier;
-            } else {
-                logger.warn("Missing required parameters for participant lookup");
-                return ResponseEntity.badRequest().body(Map.of(
-                        "error", "Missing required parameters",
-                        "message", "Provide either 'participantId' (scheme::identifier) or both 'scheme' and 'identifier'",
+            }
+
+            // If smpEndpoint is not provided, query SML to discover it (requires participant info)
+            if (smpEndpoint == null || smpEndpoint.trim().isEmpty()) {
+                if (lookupScheme == null || lookupIdentifier == null) {
+                    logger.warn("Missing both smpEndpoint and participantId/scheme/identifier");
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "error", "Missing required parameters",
+                            "message", "Provide either 'smpEndpoint' or 'participantId' (scheme::identifier)",
+                            "examples", new Object[]{
+                                    "?smpEndpoint=https://smp.example.com/service/&participantId=GLN::9999999999999",
+                                    "?participantId=GLN::9999999999999"
+                            }
+                    ));
+                }
+
+                logger.info("SMP endpoint not provided, querying SML for participant {}::{}", lookupScheme, lookupIdentifier);
+                try {
+                    smpEndpoint = smlLookupService.lookupSMPEndpoint(lookupScheme, lookupIdentifier);
+                    if (smpEndpoint == null) {
+                        logger.warn("SMP endpoint not found in SML for {}::{}", lookupScheme, lookupIdentifier);
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                                "error", "Participant not found",
+                                "message", String.format("Participant '%s::%s' not found in DBNA SML registry", lookupScheme, lookupIdentifier),
+                                "scheme", lookupScheme,
+                                "identifier", lookupIdentifier
+                        ));
+                    }
+                    logger.info("SMP endpoint discovered via SML: {}", smpEndpoint);
+                } catch (SMLLookupException e) {
+                    logger.error("SML lookup failed: {}", e.getMessage());
+                    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                            "error", "SML lookup failed",
+                            "message", e.getMessage()
+                    ));
+                }
+            }
+
+            // If we still don't have participant info, return available services from smpEndpoint
+            if (lookupScheme == null || lookupIdentifier == null) {
+                logger.info("Only smpEndpoint provided, returning endpoint information");
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "smpEndpoint", smpEndpoint,
+                        "message", "SMP endpoint is valid and accessible",
+                        "note", "Provide 'participantId' (scheme::identifier) to query for services",
                         "examples", new Object[]{
-                                "?participantId=GLN::9999999999999&documentTypeId=...&processId=...",
-                                "?scheme=GLN&identifier=9999999999999&documentTypeId=...&processId=..."
+                                "?smpEndpoint=" + smpEndpoint + "&participantId=GLN::9999999999999",
+                                "?smpEndpoint=" + smpEndpoint + "&scheme=GLN&identifier=9999999999999"
                         }
                 ));
             }
 
             String fullParticipantId = lookupScheme + "::" + lookupIdentifier;
 
-            logger.info("Querying SMP endpoint: {} for participant: {}, documentType: {}, process: {}",
-                    smpEndpoint, fullParticipantId, documentTypeId, processId);
+            // Check if documentTypeId and processId are provided
+            boolean hasDocumentType = documentTypeId != null && !documentTypeId.trim().isEmpty();
+            boolean hasProcessId = processId != null && !processId.trim().isEmpty();
 
-            // Query SMP for service information
+            if (hasDocumentType && hasProcessId) {
+                // Query specific service endpoint
+                logger.info("Querying SMP endpoint: {} for participant: {}, documentType: {}, process: {}",
+                        smpEndpoint, fullParticipantId, documentTypeId, processId);
+
+                return querySMPSpecificService(smpEndpoint, lookupScheme, lookupIdentifier, fullParticipantId, documentTypeId, processId);
+            } else {
+                // Return all available document types and their services
+                logger.info("Querying all available services for participant: {} from SMP: {}",
+                        fullParticipantId, smpEndpoint);
+
+                return querySMPAllServices(smpEndpoint, lookupScheme, lookupIdentifier, fullParticipantId);
+            }
+
+        } catch (SMLLookupException e) {
+            logger.error("SML lookup failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                    "error", "SML lookup failed",
+                    "message", e.getMessage()
+            ));
+        } catch (SMPDiscoveryException e) {
+            logger.error("SMP discovery failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                    "error", "SMP discovery failed",
+                    "message", e.getMessage()
+            ));
+        } catch (IllegalArgumentException e) {
+            logger.error("Invalid argument: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid argument",
+                    "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            logger.error("Unexpected error during SMP query", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "error", "Internal server error",
+                    "message", "An unexpected error occurred: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Query SMP for a specific service endpoint
+     */
+    private ResponseEntity<Map<String, Object>> querySMPSpecificService(
+            String smpEndpoint, String scheme, String identifier, String fullParticipantId,
+            String documentTypeId, String processId) {
+        try {
             SMPServiceInfo serviceInfo = smpService.discoverServiceEndpoint(
                     smpEndpoint,
                     fullParticipantId,
@@ -223,8 +287,8 @@ public class QueryController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
                         "error", "Service endpoint not found",
                         "message", String.format("No service endpoint found for document type '%s' and process '%s'", documentTypeId, processId),
-                        "scheme", lookupScheme,
-                        "identifier", lookupIdentifier,
+                        "scheme", scheme,
+                        "identifier", identifier,
                         "documentTypeId", documentTypeId,
                         "processId", processId
                 ));
@@ -234,8 +298,8 @@ public class QueryController {
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("scheme", lookupScheme);
-            response.put("identifier", lookupIdentifier);
+            response.put("scheme", scheme);
+            response.put("identifier", identifier);
             response.put("documentTypeId", documentTypeId);
             response.put("processId", processId);
             response.put("endpointUrl", serviceInfo.getEndpointUrl());
@@ -266,29 +330,59 @@ public class QueryController {
 
             return ResponseEntity.ok(response);
 
-        } catch (SMLLookupException e) {
-            logger.error("SML lookup failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
-                    "error", "SML lookup failed",
-                    "message", e.getMessage()
-            ));
-        } catch (SMPDiscoveryException e) {
-            logger.error("SMP discovery failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
-                    "error", "SMP discovery failed",
-                    "message", e.getMessage()
-            ));
-        } catch (IllegalArgumentException e) {
-            logger.error("Invalid argument: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Invalid argument",
-                    "message", e.getMessage()
-            ));
         } catch (Exception e) {
-            logger.error("Unexpected error during SMP query", e);
+            logger.error("Error querying SMP", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                    "error", "Internal server error",
-                    "message", "An unexpected error occurred: " + e.getMessage()
+                    "error", "SMP query failed",
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Query SMP for all available services for a participant
+     */
+    private ResponseEntity<Map<String, Object>> querySMPAllServices(
+            String smpEndpoint, String scheme, String identifier, String fullParticipantId) {
+        try {
+            Map<String, Object> result = smpService.getAllServiceReferencesWithXml(smpEndpoint, fullParticipantId);
+
+            @SuppressWarnings("unchecked")
+            Map<String, String> allServices = (Map<String, String>) result.get("services");
+            String serviceGroupXml = (String) result.get("serviceGroupXml");
+
+            if (allServices == null || allServices.isEmpty()) {
+                logger.warn("No services found in SMP for participant: {}", fullParticipantId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                        "error", "No services found",
+                        "message", String.format("No services are registered for participant '%s'", fullParticipantId),
+                        "scheme", scheme,
+                        "identifier", identifier
+                ));
+            }
+
+            logger.info("Successfully discovered {} services for participant: {}", allServices.size(), fullParticipantId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("scheme", scheme);
+            response.put("identifier", identifier);
+            response.put("availableServices", allServices);
+            response.put("serviceCount", allServices.size());
+            response.put("note", "Provide 'documentTypeId' and 'processId' parameters to query a specific service");
+
+            // Add raw XML response
+            if (serviceGroupXml != null) {
+                response.put("serviceGroupXml", serviceGroupXml);
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("Error querying SMP for all services", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "error", "SMP query failed",
+                    "message", e.getMessage()
             ));
         }
     }

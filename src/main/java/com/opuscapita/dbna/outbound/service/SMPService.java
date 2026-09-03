@@ -20,6 +20,7 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -507,6 +508,125 @@ public class SMPService {
      */
     private boolean isDocumentTypeSupportedInServiceGroup(String xml, String documentTypeId) {
         return extractServiceReferenceFromServiceGroup(xml, documentTypeId) != null;
+    }
+    
+    /**
+     * Extracts all available service references from ServiceGroup XML
+     * 
+     * @param smpEndpoint The base URL of the SMP service
+     * @param participantId The participant identifier
+     * @return Map of document type ID to service reference
+     * @throws Exception if retrieval fails
+     */
+    public Map<String, String> getAllServiceReferences(String smpEndpoint, String participantId) throws Exception {
+        if (smpEndpoint == null || smpEndpoint.trim().isEmpty()) {
+            throw new IllegalArgumentException("SMP endpoint is required");
+        }
+        
+        smpEndpoint = ensureUrlScheme(smpEndpoint);
+        
+        try {
+            String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
+            logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
+            
+            String response = executeHttpGet(serviceGroupUrl);
+            logger.debug("ServiceGroup resource retrieved successfully");
+            
+            return extractAllServiceReferencesFromServiceGroup(response);
+        } catch (Exception e) {
+            logger.error("Failed to retrieve all service references from SMP", e);
+            throw new Exception("Failed to retrieve service references: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Extracts all available service references from ServiceGroup XML and returns both services and raw XML
+     * 
+     * @param smpEndpoint The base URL of the SMP service
+     * @param participantId The participant identifier
+     * @return Map containing:
+     *   - "services": Map of document type ID to service reference
+     *   - "serviceGroupXml": The raw ServiceGroup XML response
+     * @throws Exception if retrieval fails
+     */
+    public Map<String, Object> getAllServiceReferencesWithXml(String smpEndpoint, String participantId) throws Exception {
+        if (smpEndpoint == null || smpEndpoint.trim().isEmpty()) {
+            throw new IllegalArgumentException("SMP endpoint is required");
+        }
+        
+        smpEndpoint = ensureUrlScheme(smpEndpoint);
+        
+        try {
+            String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
+            logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
+            
+            String response = executeHttpGet(serviceGroupUrl);
+            logger.debug("ServiceGroup resource retrieved successfully");
+            
+            Map<String, String> services = extractAllServiceReferencesFromServiceGroup(response);
+            
+            Map<String, Object> result = new java.util.HashMap<>();
+            result.put("services", services);
+            result.put("serviceGroupXml", response);
+            
+            return result;
+        } catch (Exception e) {
+            logger.error("Failed to retrieve all service references from SMP", e);
+            throw new Exception("Failed to retrieve service references: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Extracts all service references from ServiceGroup XML
+     * 
+     * @param xml The ServiceGroup XML response
+     * @return Map of document type ID to service reference
+     */
+    private Map<String, String> extractAllServiceReferencesFromServiceGroup(String xml) {
+        Map<String, String> result = new java.util.LinkedHashMap<>();
+        
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            
+            Document doc = builder.parse(new InputSource(new StringReader(xml)));
+            
+            // Get all ServiceReference elements
+            NodeList serviceReferences = doc.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/AggregateComponents", "ServiceReference");
+            
+            logger.debug("Found {} ServiceReference elements in ServiceGroup", serviceReferences.getLength());
+            
+            // Extract all ServiceReference IDs
+            for (int i = 0; i < serviceReferences.getLength(); i++) {
+                Element serviceRef = (Element) serviceReferences.item(i);
+                
+                // Get the ID element within ServiceReference
+                NodeList idElements = serviceRef.getElementsByTagNameNS("http://docs.oasis-open.org/bdxr/ns/SMP/2/BasicComponents", "ID");
+                
+                if (idElements.getLength() > 0) {
+                    Element idElement = (Element) idElements.item(0);
+                    String documentTypeId = idElement.getTextContent();
+                    String schemeID = idElement.getAttribute("schemeID");
+                    
+                    logger.debug("Found document type: {} (schemeID: {})", documentTypeId, schemeID);
+                    
+                    // Return the serviceReference as schemeID::documentTypeId
+                    String serviceReference = schemeID != null && !schemeID.isEmpty()
+                        ? schemeID + "::" + documentTypeId
+                        : documentTypeId;
+                    
+                    result.put(documentTypeId, serviceReference);
+                }
+            }
+            
+            logger.info("Extracted {} document types from ServiceGroup", result.size());
+            return result;
+            
+        } catch (Exception e) {
+            logger.error("Failed to parse ServiceGroup XML: {}", e.getMessage(), e);
+            return result;
+        }
     }
 
     /**
