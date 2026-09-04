@@ -74,10 +74,10 @@ public class SMPService {
         logger.info("Discovering service endpoint from SMP: {}", smpEndpoint);
         logger.debug("Participant: {}, DocumentType: {}, Process: {}", participantId, documentTypeId, processId);
         
-        try {
-            // Step 1: Query ServiceGroup to acquire the exact serviceReference for the requested document type
-            String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
-            logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
+         try {
+             // Step 1: Query ServiceGroup to acquire the exact serviceReference for the requested document type
+             String serviceGroupUrl = buildServiceGroupUrl(smpEndpoint, participantId);
+             logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
 
             String serviceGroupXml = null;
             String serviceReference = null;
@@ -128,10 +128,10 @@ public class SMPService {
      * Returns the serviceReference (document type ID) as published in the SMP, which ensures proper
      * encoding of special characters like ## that might be present in the document type identifier.
      */
-    private String getServiceReferenceFromServiceGroup(String smpEndpoint, String participantId, String documentTypeId) {
-        String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
+     private String getServiceReferenceFromServiceGroup(String smpEndpoint, String participantId, String documentTypeId) {
+         String serviceGroupUrl = buildServiceGroupUrl(smpEndpoint, participantId);
 
-        logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
+         logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
 
         try {
             String response = executeHttpGet(serviceGroupUrl);
@@ -148,12 +148,12 @@ public class SMPService {
     /**
      * Checks if a document type is supported by querying the ServiceGroup resource
      */
-    @Deprecated(forRemoval = true)
-    private boolean isDocumentTypeSupported(String smpEndpoint, String participantId, String documentTypeId) {
-        String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
-        
-        logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
-        
+     @Deprecated(forRemoval = true)
+     private boolean isDocumentTypeSupported(String smpEndpoint, String participantId, String documentTypeId) {
+         String serviceGroupUrl = buildServiceGroupUrl(smpEndpoint, participantId);
+
+         logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
+
         try {
             String response = executeHttpGet(serviceGroupUrl);
             logger.debug("ServiceGroup resource retrieved successfully");
@@ -171,8 +171,7 @@ public class SMPService {
       * The XML contains both endpoint URL and certificate information
       */
      private String queryServiceMetadataXML(String smpEndpoint, String participantId, String serviceReference, String processId) {
-         String serviceMetadataUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId) + "/services/" +
-             urlEncode(serviceReference);
+         String serviceMetadataUrl = buildServiceMetadataUrl(smpEndpoint, participantId, serviceReference);
 
          logger.debug("Querying ServiceMetadata resource: {}", serviceMetadataUrl);
 
@@ -190,8 +189,7 @@ public class SMPService {
       * Queries the ServiceMetadata resource to get the endpoint for a specific serviceReference and process
       */
     private String queryServiceEndpoint(String smpEndpoint, String participantId, String serviceReference, String processId) {
-         String serviceMetadataUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId) + "/services/" +
-             urlEncode(serviceReference);
+         String serviceMetadataUrl = buildServiceMetadataUrl(smpEndpoint, participantId, serviceReference);
 
          logger.debug("Querying ServiceMetadata resource: {}", serviceMetadataUrl);
 
@@ -437,7 +435,30 @@ public class SMPService {
              return value;
          }
      }
-    
+
+     /**
+      * Builds the ServiceGroup URL for querying SMP resources
+      *
+      * @param smpEndpoint The base URL of the SMP service
+      * @param participantId The participant identifier
+      * @return The constructed ServiceGroup URL
+      */
+     private String buildServiceGroupUrl(String smpEndpoint, String participantId) {
+         return smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
+     }
+
+     /**
+      * Builds the ServiceMetadata URL for querying SMP resources
+      *
+      * @param smpEndpoint The base URL of the SMP service
+      * @param participantId The participant identifier
+      * @param serviceReference The service reference (document type ID)
+      * @return The constructed ServiceMetadata URL
+      */
+     private String buildServiceMetadataUrl(String smpEndpoint, String participantId, String serviceReference) {
+         return smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId) + "/services/" + urlEncode(serviceReference);
+     }
+
     /**
      * Extracts the serviceReference from ServiceGroup XML for the requested document type
      *
@@ -523,16 +544,16 @@ public class SMPService {
             throw new IllegalArgumentException("SMP endpoint is required");
         }
         
-        smpEndpoint = ensureUrlScheme(smpEndpoint);
-        
-        try {
-            String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
-            logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
-            
-            String response = executeHttpGet(serviceGroupUrl);
-            logger.debug("ServiceGroup resource retrieved successfully");
-            
-            return extractAllServiceReferencesFromServiceGroup(response);
+         smpEndpoint = ensureUrlScheme(smpEndpoint);
+
+         try {
+             String serviceGroupUrl = buildServiceGroupUrl(smpEndpoint, participantId);
+             logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
+
+             String response = executeHttpGet(serviceGroupUrl);
+             logger.debug("ServiceGroup resource retrieved successfully");
+
+             return extractAllServiceReferencesFromServiceGroup(response);
         } catch (Exception e) {
             logger.error("Failed to retrieve all service references from SMP", e);
             throw new Exception("Failed to retrieve service references: " + e.getMessage(), e);
@@ -554,17 +575,17 @@ public class SMPService {
             throw new IllegalArgumentException("SMP endpoint is required");
         }
         
-        smpEndpoint = ensureUrlScheme(smpEndpoint);
-        
-        try {
-            String serviceGroupUrl = smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
-            logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
-            
-            String response = executeHttpGet(serviceGroupUrl);
-            logger.debug("ServiceGroup resource retrieved successfully");
-            
-            Map<String, String> services = extractAllServiceReferencesFromServiceGroup(response);
-            
+         smpEndpoint = ensureUrlScheme(smpEndpoint);
+
+         try {
+             String serviceGroupUrl = buildServiceGroupUrl(smpEndpoint, participantId);
+             logger.debug("Querying ServiceGroup resource: {}", serviceGroupUrl);
+
+             String response = executeHttpGet(serviceGroupUrl);
+             logger.debug("ServiceGroup resource retrieved successfully");
+
+             Map<String, String> services = extractAllServiceReferencesFromServiceGroup(response);
+
             Map<String, Object> result = new java.util.HashMap<>();
             result.put("services", services);
             result.put("serviceGroupXml", response);
