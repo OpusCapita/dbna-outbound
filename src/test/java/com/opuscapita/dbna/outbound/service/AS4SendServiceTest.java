@@ -60,6 +60,9 @@ class AS4SendServiceTest {
     private TruststoreManager truststoreManager;
 
     @Mock
+    private XHEEnvelopeService xheEnvelopeService;
+
+    @Mock
     private ContainerMessage containerMessage;
 
     @Mock
@@ -74,7 +77,7 @@ class AS4SendServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         // Create a real instance first
-        AS4SendService realService = new AS4SendService(storage, ublDocumentService, as4CryptoFactory, as4Configuration, smlLookupService, smpService, truststoreManager);
+        AS4SendService realService = new AS4SendService(storage, ublDocumentService, as4CryptoFactory, as4Configuration, smlLookupService, smpService, truststoreManager, xheEnvelopeService);
 
         // Create a spy so we can mock sendAS4Message while keeping other methods real
         as4SendService = spy(realService);
@@ -106,6 +109,15 @@ class AS4SendServiceTest {
         ReflectionTestUtils.setField(as4SendService, "smpUrl", "");
         ReflectionTestUtils.setField(as4SendService, "maxRetryAttempts", 3);
         ReflectionTestUtils.setField(as4SendService, "retryDelayMs", 1000L);
+        ReflectionTestUtils.setField(as4SendService, "xheAvoid", false);  // Default: use XHE envelope
+
+        // Mock XHE envelope service to wrap document
+        lenient().when(xheEnvelopeService.wrapInXHEEnvelope(anyString(), anyString(), anyString(), anyString(), anyString(), anyString()))
+            .thenAnswer(invocation -> {
+                // Just return the original UBL content wrapped in a simple XHE structure for testing
+                String ublContent = invocation.getArgument(0);
+                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><XHE xmlns=\"http://docs.oasis-open.org/bdxr/ns/XHE/1/ExchangeHeaderEnvelope\"><XHEVersionID>1.0</XHEVersionID><Payloads><Payload><PayloadContent>" + ublContent + "</PayloadContent></Payload></Payloads></XHE>";
+            });
 
         // Mock SML and SMP service responses for all tests by default
         lenient().when(smlLookupService.lookupSMPEndpoint(anyString(), anyString()))

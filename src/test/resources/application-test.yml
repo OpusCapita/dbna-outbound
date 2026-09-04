@@ -19,6 +19,8 @@ dbna:
   retry:
     max-attempts: 2
     delay-ms: 100
+  xhe:
+    avoid: false  # Test XHE envelope functionality by default
 
 # AS4 Configuration - Test Mode
 as4:

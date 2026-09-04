@@ -66,6 +66,7 @@ public class AS4SendService implements SendService {
     private final SMLLookupService smlLookupService;
     private final SMPService smpService;
     private final TruststoreManager truststoreManager;
+    private final XHEEnvelopeService xheEnvelopeService;
 
     // DBNA Network Configuration - injected via @Value
     @Value("${dbna.from-party-id:${spring.application.name:dbna-outbound}}")
@@ -108,7 +109,8 @@ public class AS4SendService implements SendService {
             AS4Configuration as4Configuration,
             SMLLookupService smlLookupService,
             SMPService smpService,
-            TruststoreManager truststoreManager) {
+            TruststoreManager truststoreManager,
+            XHEEnvelopeService xheEnvelopeService) {
         this.storage = storage;
         this.ublDocumentService = ublDocumentService;
         this.as4CryptoFactory = as4CryptoFactory;
@@ -116,6 +118,7 @@ public class AS4SendService implements SendService {
         this.smlLookupService = smlLookupService;
         this.smpService = smpService;
         this.truststoreManager = truststoreManager;
+        this.xheEnvelopeService = xheEnvelopeService;
     }
 
     /**
@@ -409,30 +412,68 @@ public class AS4SendService implements SendService {
                          messageId, conversationId, fromParty, toParty, request, as4CryptoFactory
                      );
 
-                    // Prepare UBL bytes
-                     byte[] ublBytes;
+                    // Prepare payload content (either XHE-wrapped or standalone UBL)
+                     String payloadContent;
+                     if (!xheAvoid) {
+                         // XHE Envelope Mode (default) - wrap UBL document in XHE envelope
+                         logger.info("✓ Using XHE envelope mode (default) - wrapping UBL document in XHE per DBNA profile");
+                         try {
+                             // Extract CustomizationID and ProfileID from UBL document
+                             String customizationId = extractUBLElementValue(ublElement, "CustomizationID");
+                             String profileId = extractUBLElementValue(ublElement, "ProfileID");
+
+                             logger.debug("Extracted UBL metadata - CustomizationID: {}, ProfileID: {}", customizationId, profileId);
+
+                             // Wrap UBL in XHE envelope
+                             payloadContent = xheEnvelopeService.wrapInXHEEnvelope(
+                                 request.getUblDocumentContent(),
+                                 fromParty,
+                                 toParty,
+                                 customizationId != null ? customizationId : "",
+                                 profileId != null ? profileId : "",
+                                 messageId
+                             );
+                             logger.info("UBL document successfully wrapped in XHE envelope");
+                         } catch (Exception xheEx) {
+                             logger.error("Failed to create XHE envelope, falling back to standalone UBL", xheEx);
+                             payloadContent = request.getUblDocumentContent();
+                         }
+                     } else {
+                         // Standalone Mode - send UBL document without XHE envelope
+                         logger.info("✓ Using standalone mode (XHE envelope DISABLED) - sending UBL document directly");
+                         payloadContent = request.getUblDocumentContent();
+                     }
+
+                     // Convert payload content to bytes
+                     byte[] payloadBytes;
                      {
                          java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
                          javax.xml.transform.TransformerFactory.newInstance().newTransformer()
-                             .transform(new javax.xml.transform.dom.DOMSource(ublElement),
+                             .transform(new javax.xml.transform.stream.StreamSource(new StringInputStream(payloadContent, StandardCharsets.UTF_8)),
                                        new javax.xml.transform.stream.StreamResult(baos));
-                         ublBytes = baos.toByteArray();
+                         payloadBytes = baos.toByteArray();
                      }
 
                      // Log document details
-                     int uncompressedSize = ublBytes.length;
-                     logger.debug("=== UBL PAYLOAD DETAILS ===");
-                     logger.debug("Raw UBL XML content (uncompressed):\n{}", request.getUblDocumentContent());
+                     int uncompressedSize = payloadBytes.length;
+                     logger.debug("=== PAYLOAD DETAILS ===");
+                     if (xheAvoid) {
+                         logger.debug("Payload content (first 200 chars):\n{}", payloadContent.length() > 200 ?
+                             payloadContent.substring(0, 200) + "..." : payloadContent);
+                     } else {
+                         logger.debug("XHE-wrapped payload preview (first 200 chars):\n{}", payloadContent.length() > 200 ?
+                             payloadContent.substring(0, 200) + "..." : payloadContent);
+                     }
                      logger.debug("Uncompressed payload size: {} bytes", uncompressedSize);
-                     logger.debug("XHE Envelope Mode: {}", xheAvoid ? "DISABLED (standalone)" : "ENABLED (XHE envelope)");
+                     logger.debug("Envelope Mode: {}", xheAvoid ? "STANDALONE (UBL only)" : "XHE (with header)");
 
                      // Log XML structure preview
-                     String xmlPreview = extractXmlStructurePreview(request.getUblDocumentContent());
-                     logger.debug("XML structure preview:\n{}", xmlPreview);
+                     String xmlPreview = extractXmlStructurePreview(payloadContent);
+                     logger.debug("Payload XML structure preview:\n{}", xmlPreview);
 
                      // Log builder configuration that will be used
                      logger.debug("Builder configuration for payload:");
-                     logger.debug("  - Data size: {} bytes", ublBytes.length);
+                     logger.debug("  - Data size: {} bytes", payloadBytes.length);
                      logger.debug("  - Compression: GZIP");
                      logger.debug("  - MIME type: application/xml");
                      logger.debug("  - Service: {}", request.getService());
@@ -443,7 +484,7 @@ public class AS4SendService implements SendService {
                      logger.debug("  - PMode ID: {}", com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId());
                      logger.debug("=== END PAYLOAD DETAILS ===");
 
-                       // Add the payload as either XHE envelope (default) or standalone document
+                       // Add the payload as attachment
                        // Key: Phase4 requires attachments to be "repeatable" for signing/encryption
                        // We use a file-based data source to ensure the data is accessible throughout signing and encryption
                        //
@@ -457,43 +498,37 @@ public class AS4SendService implements SendService {
                        // Workaround: We create the attachment using a File-based data source (not just byte array).
                        // This ensures Phase4 can reopen/reread the data during signing, encryption, and HTTP transmission.
                        // File-based approach is more reliable than byte arrays for large or complex messages.
-                       java.io.File tempAttachmentFile = null;
+                       java.io.File tempAttachmentFile;
                        try {
                            // Create a temporary file to store the attachment data
                            // This ensures Phase4 can read the data multiple times (for signing and encryption)
                            tempAttachmentFile = java.io.File.createTempFile("as4-payload-", ".xml", new java.io.File(System.getProperty("java.io.tmpdir")));
                            tempAttachmentFile.deleteOnExit();
 
-                           // Write the UBL bytes to the temporary file
+                           // Write the payload bytes to the temporary file
                            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempAttachmentFile)) {
-                               fos.write(ublBytes);
+                               fos.write(payloadBytes);
                                fos.flush();
                            }
 
                            logger.debug("Created temporary attachment file: {}", tempAttachmentFile.getAbsolutePath());
 
-                            // Create the attachment based on XHE setting
+                            // Create the attachment using the file data source
                             var payloadAttachment = AS4OutgoingAttachment.builder()
                                 .data(tempAttachmentFile)
                                 .compressionGZIP()
                                 .mimeType(CMimeType.APPLICATION_XML)
                                 .build();
 
-                           if (xheAvoid) {
-                               logger.info("✓ Using standalone mode (XHE envelope DISABLED) - sending UBL document directly");
-                           } else {
-                               logger.info("✓ Using XHE envelope mode (default) - wrapping UBL document in XHE");
-                           }
-
                            logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
                            logger.debug("Attachment object created: {} with data size: {}",
-                               payloadAttachment.getClass().getSimpleName(), ublBytes.length);
+                               payloadAttachment.getClass().getSimpleName(), payloadBytes.length);
                            builder.addAttachment(payloadAttachment);
                        } catch (Exception attachmentEx) {
                            logger.error("Failed to create attachment with file data source, falling back to byte array", attachmentEx);
                             // Fallback to byte array if file creation fails
                             var payloadAttachment = AS4OutgoingAttachment.builder()
-                                .data(ublBytes)
+                                .data(payloadBytes)
                                 .compressionGZIP()
                                 .mimeType(CMimeType.APPLICATION_XML)
                                 .build();
@@ -502,11 +537,12 @@ public class AS4SendService implements SendService {
 
                     // Send the message with X.509 certificate signing via AS4 keystore
                      // Important: Phase4 may log warnings about missing PMode but still attempt to send
-                     logger.info("Initiating AS4 message send via Phase4");
-                     logger.debug("Builder configuration: service=urn:oasis:names:tc:ebxml-msg:service, " +
-                         "action=Send, from={}, to={}, endpoint={}",
-                         fromParty, toParty, request.getReceiverEndpointUrl());
-                     logger.debug("Payload: XHE with embedded UBL Invoice ({} bytes, GZIP compressed)", ublBytes.length);
+                      logger.info("Initiating AS4 message send via Phase4");
+                      logger.debug("Builder configuration: service=urn:oasis:names:tc:ebxml-msg:service, " +
+                          "action=Send, from={}, to={}, endpoint={}",
+                          fromParty, toParty, request.getReceiverEndpointUrl());
+                      logger.debug("Payload: {} ({} bytes, GZIP compressed)",
+                          xheAvoid ? "Standalone UBL" : "XHE-wrapped document", payloadBytes.length);
 
                      // Call sendMessageAndCheckForReceipt and capture the result
                       // This returns an enum indicating success or failure of the send operation
@@ -888,7 +924,40 @@ public class AS4SendService implements SendService {
     }
 
     /**
-     * Extract XML structure preview from the UBL document.
+     * Extract a text element value from UBL document by local name
+     * This searches for elements matching the local name without namespace
+     * (handles UBL 2.3 namespace)
+     *
+     * @param element Root element to search from
+     * @param localName Local name of the element to find
+     * @return Element text content, or null if not found
+     */
+    private String extractUBLElementValue(Element element, String localName) {
+        if (element == null || localName == null) {
+            return null;
+        }
+
+        // Get all child nodes
+        org.w3c.dom.NodeList nodeList = element.getChildNodes();
+        for (int i = 0; i < nodeList.getLength(); i++) {
+            org.w3c.dom.Node node = nodeList.item(i);
+            if (node.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE) {
+                Element child = (Element) node;
+                // Check local name (ignores namespace)
+                if (child.getLocalName() != null && child.getLocalName().equals(localName)) {
+                    String text = child.getTextContent();
+                    logger.debug("Extracted UBL element {}: {}", localName, text);
+                    return text;
+                }
+            }
+        }
+
+        logger.debug("UBL element {} not found", localName);
+        return null;
+    }
+
+    /**
+     * Extract XML structure preview from the document.
      * Shows the root element and first few child elements for debugging.
      */
     private String extractXmlStructurePreview(String xmlContent) {
