@@ -94,6 +94,9 @@ public class AS4SendService implements SendService {
     @Value("${dbna.retry.timeout:30000}")
     private long timeoutMs;
 
+    @Value("${dbna.xhe.avoid:false}")
+    private boolean xheAvoid;
+
     /**
      * Constructor with dependency injection
      * Spring will automatically inject all required bean dependencies
@@ -406,91 +409,96 @@ public class AS4SendService implements SendService {
                          messageId, conversationId, fromParty, toParty, request, as4CryptoFactory
                      );
 
-                    // Create XHE payload from UBL bytes
-                    byte[] ublBytes;
-                    {
-                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                        javax.xml.transform.TransformerFactory.newInstance().newTransformer()
-                            .transform(new javax.xml.transform.dom.DOMSource(ublElement),
-                                      new javax.xml.transform.stream.StreamResult(baos));
-                        ublBytes = baos.toByteArray();
-                    }
+                    // Prepare UBL bytes
+                     byte[] ublBytes;
+                     {
+                         java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                         javax.xml.transform.TransformerFactory.newInstance().newTransformer()
+                             .transform(new javax.xml.transform.dom.DOMSource(ublElement),
+                                       new javax.xml.transform.stream.StreamResult(baos));
+                         ublBytes = baos.toByteArray();
+                     }
 
-                    // Log UBL document details
-                    int uncompressedSize = ublBytes.length;
-                    logger.debug("=== UBL PAYLOAD DETAILS ===");
-                    logger.debug("Raw UBL XML content (uncompressed):\n{}", request.getUblDocumentContent());
-                    logger.debug("Uncompressed payload size: {} bytes", uncompressedSize);
+                     // Log document details
+                     int uncompressedSize = ublBytes.length;
+                     logger.debug("=== UBL PAYLOAD DETAILS ===");
+                     logger.debug("Raw UBL XML content (uncompressed):\n{}", request.getUblDocumentContent());
+                     logger.debug("Uncompressed payload size: {} bytes", uncompressedSize);
+                     logger.debug("XHE Envelope Mode: {}", xheAvoid ? "DISABLED (standalone)" : "ENABLED (XHE envelope)");
 
-                    // Log XML structure preview
-                    String xmlPreview = extractXmlStructurePreview(request.getUblDocumentContent());
-                    logger.debug("XML structure preview:\n{}", xmlPreview);
+                     // Log XML structure preview
+                     String xmlPreview = extractXmlStructurePreview(request.getUblDocumentContent());
+                     logger.debug("XML structure preview:\n{}", xmlPreview);
 
-                    // Log builder configuration that will be used
-                    logger.debug("Builder configuration for payload:");
-                    logger.debug("  - Data size: {} bytes", ublBytes.length);
-                    logger.debug("  - Compression: GZIP");
-                    logger.debug("  - MIME type: application/xml");
-                    logger.debug("  - Service: {}", request.getService());
-                    logger.debug("  - Action: {}", request.getAction());
-                    logger.debug("  - From Party: {}", fromParty);
-                    logger.debug("  - To Party: {}", toParty);
-                    logger.debug("  - Endpoint: {}", request.getReceiverEndpointUrl());
-                    logger.debug("  - PMode ID: {}", com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId());
-                    logger.debug("=== END PAYLOAD DETAILS ===");
+                     // Log builder configuration that will be used
+                     logger.debug("Builder configuration for payload:");
+                     logger.debug("  - Data size: {} bytes", ublBytes.length);
+                     logger.debug("  - Compression: GZIP");
+                     logger.debug("  - MIME type: application/xml");
+                     logger.debug("  - Service: {}", request.getService());
+                     logger.debug("  - Action: {}", request.getAction());
+                     logger.debug("  - From Party: {}", fromParty);
+                     logger.debug("  - To Party: {}", toParty);
+                     logger.debug("  - Endpoint: {}", request.getReceiverEndpointUrl());
+                     logger.debug("  - PMode ID: {}", com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId());
+                     logger.debug("=== END PAYLOAD DETAILS ===");
 
-                      // Add the XHE as the payload using builder pattern
-                      // This follows the Phase4 DBNAlliance reference implementation
-                      // Key: Phase4 requires attachments to be "repeatable" for signing/encryption
-                      // We use a file-based data source to ensure the data is accessible throughout signing and encryption
-                      //
-                      // KNOWN ISSUE & WORKAROUND:
-                      // Phase4's BasicHttpPoster may not properly include the multipart message body in the HTTP POST request,
-                      // resulting in "Request body is required" (400) errors from the receiving endpoint.
-                      //
-                      // Root Cause: Phase4 converts the MIME message to a repeatable HTTP entity using a temporary file,
-                      // but the HTTP client may not properly read and stream the content to the HTTP request body.
-                      //
-                      // Workaround: We create the attachment using a File-based data source (not just byte array).
-                      // This ensures Phase4 can reopen/reread the data during signing, encryption, and HTTP transmission.
-                      // File-based approach is more reliable than byte arrays for large or complex messages.
-                      java.io.File tempAttachmentFile = null;
-                      try {
-                          // Create a temporary file to store the attachment data
-                          // This ensures Phase4 can read the data multiple times (for signing and encryption)
-                          tempAttachmentFile = java.io.File.createTempFile("as4-payload-", ".xml", new java.io.File(System.getProperty("java.io.tmpdir")));
-                          tempAttachmentFile.deleteOnExit();
+                       // Add the payload as either XHE envelope (default) or standalone document
+                       // Key: Phase4 requires attachments to be "repeatable" for signing/encryption
+                       // We use a file-based data source to ensure the data is accessible throughout signing and encryption
+                       //
+                       // KNOWN ISSUE & WORKAROUND:
+                       // Phase4's BasicHttpPoster may not properly include the multipart message body in the HTTP POST request,
+                       // resulting in "Request body is required" (400) errors from the receiving endpoint.
+                       //
+                       // Root Cause: Phase4 converts the MIME message to a repeatable HTTP entity using a temporary file,
+                       // but the HTTP client may not properly read and stream the content to the HTTP request body.
+                       //
+                       // Workaround: We create the attachment using a File-based data source (not just byte array).
+                       // This ensures Phase4 can reopen/reread the data during signing, encryption, and HTTP transmission.
+                       // File-based approach is more reliable than byte arrays for large or complex messages.
+                       java.io.File tempAttachmentFile = null;
+                       try {
+                           // Create a temporary file to store the attachment data
+                           // This ensures Phase4 can read the data multiple times (for signing and encryption)
+                           tempAttachmentFile = java.io.File.createTempFile("as4-payload-", ".xml", new java.io.File(System.getProperty("java.io.tmpdir")));
+                           tempAttachmentFile.deleteOnExit();
 
-                          // Write the UBL bytes to the temporary file
-                          try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempAttachmentFile)) {
-                              fos.write(ublBytes);
-                              fos.flush();
-                          }
+                           // Write the UBL bytes to the temporary file
+                           try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempAttachmentFile)) {
+                               fos.write(ublBytes);
+                               fos.flush();
+                           }
 
-                          logger.debug("Created temporary attachment file: {}", tempAttachmentFile.getAbsolutePath());
+                           logger.debug("Created temporary attachment file: {}", tempAttachmentFile.getAbsolutePath());
 
-                           // Create the attachment using the file data source
-                           // This is more reliable than passing raw bytes because Phase4 can reopen the file as needed
-                           var payloadAttachment = AS4OutgoingAttachment.builder()
-                               .data(tempAttachmentFile)
-                               .compressionGZIP()
-                               .mimeType(CMimeType.APPLICATION_XML)
-                               .build();
+                            // Create the attachment based on XHE setting
+                            var payloadAttachment = AS4OutgoingAttachment.builder()
+                                .data(tempAttachmentFile)
+                                .compressionGZIP()
+                                .mimeType(CMimeType.APPLICATION_XML)
+                                .build();
 
-                          logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
-                          logger.debug("Attachment object created: {} with data size: {}",
-                              payloadAttachment.getClass().getSimpleName(), ublBytes.length);
-                          builder.addAttachment(payloadAttachment);
-                      } catch (Exception attachmentEx) {
-                          logger.error("Failed to create attachment with file data source, falling back to byte array", attachmentEx);
-                           // Fallback to byte array if file creation fails
-                           var payloadAttachment = AS4OutgoingAttachment.builder()
-                               .data(ublBytes)
-                               .compressionGZIP()
-                               .mimeType(CMimeType.APPLICATION_XML)
-                               .build();
-                          builder.addAttachment(payloadAttachment);
-                      }
+                           if (xheAvoid) {
+                               logger.info("✓ Using standalone mode (XHE envelope DISABLED) - sending UBL document directly");
+                           } else {
+                               logger.info("✓ Using XHE envelope mode (default) - wrapping UBL document in XHE");
+                           }
+
+                           logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
+                           logger.debug("Attachment object created: {} with data size: {}",
+                               payloadAttachment.getClass().getSimpleName(), ublBytes.length);
+                           builder.addAttachment(payloadAttachment);
+                       } catch (Exception attachmentEx) {
+                           logger.error("Failed to create attachment with file data source, falling back to byte array", attachmentEx);
+                            // Fallback to byte array if file creation fails
+                            var payloadAttachment = AS4OutgoingAttachment.builder()
+                                .data(ublBytes)
+                                .compressionGZIP()
+                                .mimeType(CMimeType.APPLICATION_XML)
+                                .build();
+                           builder.addAttachment(payloadAttachment);
+                       }
 
                     // Send the message with X.509 certificate signing via AS4 keystore
                      // Important: Phase4 may log warnings about missing PMode but still attempt to send

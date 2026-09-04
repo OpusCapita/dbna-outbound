@@ -32,6 +32,8 @@ dbna:
     dns-server: ${DBNA_SML_DNS_SERVER:8.8.8.8}
   smp:
     url: ${DBNA_SMP_URL:} # Setting this overrides SMP URL acquired from SML
+  xhe:
+    avoid: ${DBNA_XHE_AVOID:false}  # Set to true to send documents without XHE envelope (standalone mode). Default: false (use XHE envelope)
 
 # Sirius Configuration
 sirius:
