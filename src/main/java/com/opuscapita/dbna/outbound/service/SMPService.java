@@ -482,7 +482,7 @@ public class SMPService {
       * @return The constructed ServiceGroup URL
       */
      private String buildServiceGroupUrl(String smpEndpoint, String participantId) {
-         return smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId);
+         return smpEndpoint.replaceAll("/+$", "") + "/bdxr-smp-2/" + urlEncode(participantId);
      }
 
      /**
@@ -494,12 +494,12 @@ public class SMPService {
       * @return The constructed ServiceMetadata URL
       */
      private String buildServiceMetadataUrl(String smpEndpoint, String participantId, String serviceReference) {
-         return smpEndpoint.replaceAll("/+$", "") + "/" + urlEncode(participantId) + "/services/" + urlEncode(serviceReference);
+         return smpEndpoint.replaceAll("/+$", "") + "/bdxr-smp-2/" + urlEncode(participantId) + "/services/" + urlEncode(serviceReference);
      }
 
     /**
      * Extracts the serviceReference from ServiceGroup XML for the requested document type
-     *
+     * <p>
      * The serviceReference is the exact document type ID as published in the SMP, which ensures
      * all special characters (including ##) are properly preserved and formatted.
      *
