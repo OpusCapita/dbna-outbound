@@ -14,19 +14,19 @@ import java.util.List;
 
 /**
  * Service for validating X.509 certificates used in DBNA network communication
- * 
+ * <p>
  * Performs certificate validation including:
  * - Certificate chain validation
  * - Expiration checks
  * - Hostname verification
  * - DBNA-specific certificate policy validation
- *
+ * <p>
  * According to DBNA SMP Profile v1.0 and AS4 Profile v1.0:
  * 1. SENDER queries SMP → gets RECEIVER's certificate → validates & uses for encryption
  * 2. SENDER signs message with SENDER's certificate
  * 3. RECEIVER gets signed+encrypted message from SENDER
  * 4. RECEIVER queries SMP → gets SENDER's certificate → validates signature
- *
+ * <p>
  * This service validates the receiver's certificate before we use it for encryption.
  */
 @Service
@@ -94,7 +94,7 @@ public class CertificateValidationService {
     
     /**
      * Validates the subject DN of a certificate against expected patterns
-     * 
+     * <p>
      * DBNA certificates should contain organization "Digital Business Networks Alliance"
      */
     public boolean validateSubjectDN(X509Certificate certificate) {

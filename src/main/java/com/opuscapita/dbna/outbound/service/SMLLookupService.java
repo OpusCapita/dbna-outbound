@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 
 /**
  * Service for querying DBNA Service Metadata Locator (SML) via DNS
- * 
+ * <p>
  * According to DBNA SML Profile v1.2:
  * - Constructs DNS names using SHA256 hash and Base32 encoding of party identifiers
  * - Queries NAPTR DNS records to discover SMP service endpoints
@@ -85,7 +85,7 @@ public class SMLLookupService {
     
     /**
      * Constructs the DNS name according to DBNA SML Profile v1.2
-     * 
+     * <p>
      * Algorithm:
      * 1. Concatenate scheme and identifier with "::" delimiter
      * 2. Compute SHA256 hash of the lowercased string
@@ -117,7 +117,7 @@ public class SMLLookupService {
     
     /**
      * Queries NAPTR records from DNS
-     * 
+     * <p>
      * Returns the URL from the reg.exp. field of the NAPTR record matching the DBNA service type
      * 
      * @throws SMLLookupException if DNS query fails or party not found in SML
@@ -208,7 +208,7 @@ public class SMLLookupService {
     
     /**
      * Extracts the SMP URL from a NAPTR record
-     * 
+     * <p>
      * Expected format: 100 10 "U" "oasis-bdxr-smp-2#dbnalliance-1.1" "!^.*$!https://smp.example.com/service/!" .
      */
     private String extractSMPUrl(String naptyRecord) {

@@ -32,22 +32,22 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 /**
  * Service for sending UBL 2.3 documents via AS4 protocol to DBNA network with X.509 certificate support
- *
+ * <p>
  * This service uses the Phase4 library with the DBNA Profile module:
  * - phase4-lib:2.5.0 - Core AS4 messaging implementation
  * - phase4-profile-dbnalliance:2.9.3 - DBNA-specific PMode definitions (auto-discovered by Phase4)
- *
+ * <p>
  * According to DBNA AS4 Profile v1.0, DBNA uses the OASIS BDXR AS4 profile:
- * https://docs.oasis-open.org/bdxr/bdx-as4/v1.0/cs01/bdx-as4-v1.0-cs01.html
- *
+ * <a href="https://docs.oasis-open.org/bdxr/bdx-as4/v1.0/cs01/bdx-as4-v1.0-cs01.html">https://docs.oasis-open.org/bdxr/bdx-as4/v1.0/cs01/bdx-as4-v1.0-cs01.html</a>
+ * <p>
  * DBNA PMode Configuration (from phase4-profile-dbnalliance auto-discovery):
  * - PMode ID: "bdxr-as4-1.0" (standard OASIS BDXR OneWay)
- * - Agreement: "https://dbnalliance.org/agreements/access_point.html"
+ * - Agreement: "<a href="https://dbnalliance.org/agreements/access_point.html">https://dbnalliance.org/agreements/access_point.html</a>"
  * - Security: X.509 with AES-256-GCM encryption (mandatory for DBNA)
  * - Retry: Enabled with 5+ attempts over 6 hours minimum
  * - Duplicate Detection: 30 days
  * - Error Handling: Missing receipts notify producer
- *
+ * <p>
  * The service:
  * 1. Phase4 automatically discovers and registers the DBNA profile when phase4-profile-dbnalliance is on classpath
  * 2. CreateAS4Builder sets .pmodeID("bdxr-as4-1.0") to use the registered DBNA PMode
@@ -185,7 +185,7 @@ public class AS4SendService implements SendService {
 
     /**
      * Resolves the receiver service information (endpoint + certificate) by querying SMP
-     *
+     * <p>
      * If receiver endpoint URL is overridden in config, it will be used instead of the SMP-provided endpoint.
      * However, SMP is ALWAYS queried to obtain the receiver certificate for validation and encryption.
      * This ensures certificate pinning even when endpoint URL is overridden.
@@ -756,7 +756,7 @@ public class AS4SendService implements SendService {
 
        /**
         * Create the AS4 builder with all the required parameters from the request.
-        *
+        * <p>
         * The .pmodeID("bdxr-as4-1.0") references the DBNA PMode that is automatically
         * registered by Phase4 when phase4-profile-dbnalliance is on the classpath.
         */
@@ -836,12 +836,12 @@ public class AS4SendService implements SendService {
     /**
      * Extracts the scheme/type prefix from an identifier that uses the pattern: scheme::value
      * Used for both document types and process identifiers in OASIS ebMS3.
-     *
+     * <p>
      * Per OASIS ebMS3 spec: Both Action and Service elements can have a type attribute.
      * For DBN Alliance:
      * - Action contains Document Type ID with format: scheme::identifier##profile
      * - Service contains Process ID with format: scheme::identifier
-     *
+     * <p>
      * This method extracts the scheme prefix (e.g., "bdx-docid-qns" or "bdx-procid-qns")
      *
      * @param identifier The full identifier (document type or process ID)

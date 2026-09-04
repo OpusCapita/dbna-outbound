@@ -444,7 +444,7 @@ public class AS4Configuration {
      * Initialize Phase4 global scope on application startup.
      * This is required by Phase4's MetaAS4Manager which expects a global scope to be available.
      * The global scope is a thread-local scope that Phase4 uses for accessing configuration and state.
-     *
+     * <p>
      * Also configures SSL context for development environments with self-signed certificates.
      */
     @EventListener(ApplicationReadyEvent.class)
@@ -476,11 +476,11 @@ public class AS4Configuration {
 
     /**
      * Configure Phase4's SSL context for both development and production.
-     *
+     * <p>
      * In DEVELOPMENT: Uses permissive TrustManager to accept self-signed certificates at localhost.
      * In PRODUCTION: Configures SSL context with the managed truststore that receives injected
      *                receiver certificates from SMP queries, enabling proper PKIX validation.
-     *
+     * <p>
      * Phase4 uses its own HTTP client and doesn't respect our secureHttpClient bean,
      * so we must configure the global SSL context that Phase4 will use.
      */
