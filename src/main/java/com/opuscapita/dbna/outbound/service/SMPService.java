@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Service for querying DBNA Service Metadata Publishing (SMP) to discover service endpoints
- * 
+ * <p>
  * According to DBNA SMP Profile v1.0:
  * - Queries ServiceGroup resources to discover supported document types and processes
  * - Queries ServiceMetadata resources to get endpoint information
@@ -131,7 +131,7 @@ public class SMPService {
     
     /**
      * Queries the ServiceGroup resource to acquire the exact serviceReference for the requested document type
-     *
+     * <p>
      * Returns the serviceReference (document type ID) as published in the SMP, which ensures proper
      * encoding of special characters like ## that might be present in the document type identifier.
      */
@@ -242,33 +242,33 @@ public class SMPService {
                 httpGet.setHeader(HEADER_IF_MODIFIED_SINCE, cached.lastModified);
                 logger.debug("Using cached resource with If-Modified-Since: {}", cached.lastModified);
             }
-            
-            var response = httpClient.execute(httpGet, httpResponse -> {
+
+            return httpClient.execute(httpGet, httpResponse -> {
                 int statusCode = httpResponse.getCode();
-                
+
                 if (statusCode == 304) {
                     logger.debug("Resource not modified, using cached version");
                     if (cached != null) {
                         return cached.content;
                     }
                 }
-                
+
                 if (statusCode == 200) {
                     String content = EntityUtils.toString(httpResponse.getEntity());
                     String lastModified = null;
-                    
+
                     var lastModifiedHeader = httpResponse.getFirstHeader(HEADER_LAST_MODIFIED);
                     if (lastModifiedHeader != null) {
                         lastModified = lastModifiedHeader.getValue();
                     }
-                    
+
                     // Cache the resource
                     resourceCache.put(url, new CachedSMPResource(content, lastModified, Instant.now().toEpochMilli()));
                     logger.debug("Cached SMP resource with Last-Modified: {}", lastModified);
-                    
+
                     return content;
                 }
-                
+
                 // Valid HTTP error response from SMP - throw SMPDiscoveryException
                 logger.warn("SMP returned HTTP error response: {} for URL: {}", statusCode, url);
                 throw new SMPDiscoveryException(
@@ -277,8 +277,6 @@ public class SMPService {
                     url
                 );
             });
-            
-            return response;
         } finally {
             httpGet.reset();
         }
@@ -290,10 +288,10 @@ public class SMPService {
       * which is used by us (the sender) for:
       * 1. Validating the receiver's endpoint legitimacy
       * 2. Encrypting the AS4 message
-      *
+      * <p>
       * The receiver will NOT use this certificate - they will use OUR certificate (obtained from SMP)
       * to validate our message signature.
-      *
+      * <p>
       * XML Structure example:
       * <sma:Endpoint>
       *   <smb:AddressURI>https://example.com/as4</smb:AddressURI>
@@ -368,9 +366,9 @@ public class SMPService {
 
     /**
      * Extracts the endpoint URL from SMP ServiceMetadata XML response
-     *
+     * <p>
      * According to DBNA SMP Profile v1.0, the AddressURI contains the receiver's endpoint.
-     *
+     * <p>
      * XML Structure: ServiceMetadata contains ProcessMetadata with Endpoint elements,
      * each containing an AddressURI with the endpoint URL.
      */
@@ -529,7 +527,7 @@ public class SMPService {
                     // Check if this matches the requested document type
                     if (supportedDocType != null && supportedDocType.equals(documentTypeId)) {
                         // Return the serviceReference as schemeID::documentTypeId
-                        String serviceReference = schemeID != null && !schemeID.isEmpty()
+                        String serviceReference = !schemeID.isEmpty()
                             ? schemeID + "::" + supportedDocType
                             : supportedDocType;
                         logger.info("Found matching serviceReference for document type {}: {}", documentTypeId, serviceReference);
@@ -549,7 +547,7 @@ public class SMPService {
 
     /**
      * Parses ServiceGroup XML and checks if the specified document type is supported
-     *
+     * <p>
      * XML Structure:
      * <b2sg:ServiceGroup>
      *   <sma:ServiceReference>
@@ -671,7 +669,7 @@ public class SMPService {
                     logger.debug("Found document type: {} (schemeID: {})", documentTypeId, schemeID);
                     
                     // Return the serviceReference as schemeID::documentTypeId
-                    String serviceReference = schemeID != null && !schemeID.isEmpty()
+                    String serviceReference = !schemeID.isEmpty()
                         ? schemeID + "::" + documentTypeId
                         : documentTypeId;
                     
