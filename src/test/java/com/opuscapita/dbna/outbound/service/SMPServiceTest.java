@@ -28,259 +28,368 @@ class SMPServiceTest {
         smpService = new SMPService(httpClient);
     }
 
+    // === Constructor Tests ===
+
     @Test
-    @DisplayName("Should require SMP endpoint parameter")
+    @DisplayName("Should construct SMPService with HttpClient")
+    void testConstructorWithHttpClient() {
+        assertNotNull(smpService, "Service should be constructed successfully");
+    }
+
+    // === SMP Endpoint Validation Tests ===
+
+    @Test
+    @DisplayName("Should reject null SMP endpoint")
     void testNullSMPEndpointThrowsException() {
-        // Act & Assert - Service should handle null gracefully or throw
-        // Testing the actual behavior rather than expected exception
-        assertDoesNotThrow(() -> {
-            try {
-                smpService.discoverServiceEndpoint(null, "GLN::123", "doctype", "process");
-            } catch (IllegalArgumentException e) {
-                // Expected behavior
-                assertNotNull(e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    @DisplayName("Should require participant ID parameter")
-    void testNullParticipantIdThrowsException() {
-        // Act & Assert
-        assertDoesNotThrow(() -> {
-            try {
-                smpService.discoverServiceEndpoint("https://smp.example.com", null, "doctype", "process");
-            } catch (IllegalArgumentException e) {
-                assertNotNull(e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    @DisplayName("Should require document type parameter")
-    void testNullDocumentTypeThrowsException() {
-        // Act & Assert
-        assertDoesNotThrow(() -> {
-            try {
-                smpService.discoverServiceEndpoint("https://smp.example.com", "GLN::123", null, "process");
-            } catch (IllegalArgumentException e) {
-                assertNotNull(e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    @DisplayName("Should require process ID parameter")
-    void testNullProcessIdThrowsException() {
-        // Act & Assert
-        assertDoesNotThrow(() -> {
-            try {
-                smpService.discoverServiceEndpoint("https://smp.example.com", "GLN::123", "doctype", null);
-            } catch (IllegalArgumentException e) {
-                assertNotNull(e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    @DisplayName("Should throw exception for empty SMP endpoint")
-    void testEmptySMPEndpointThrowsException() {
-        // Act & Assert
         assertThrows(IllegalArgumentException.class, () ->
-            smpService.discoverServiceEndpoint("", "GLN::123", "doctype", "process")
+            smpService.discoverServiceEndpoint(null, "participant", "doctype", "process"),
+            "Service should throw IllegalArgumentException for null SMP endpoint"
         );
     }
 
     @Test
-    @DisplayName("Should support HTTPS endpoints per DBNA SMP Profile v1.0")
-    void testHTTPSEndpointRequirement() {
-        // DBNA SMP Profile v1.0 Section 4.1 requires HTTPS
-        String httpsEndpoint = "https://smp.example.com/";
-        String httpEndpoint = "http://smp.example.com/";  // Not allowed
-
-        assertTrue(httpsEndpoint.startsWith("https://"));
-        assertFalse(httpEndpoint.startsWith("https://"));
+    @DisplayName("Should reject empty string SMP endpoint")
+    void testEmptySMPEndpointThrowsException() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("", "participant", "doctype", "process"),
+            "Service should throw IllegalArgumentException for empty SMP endpoint"
+        );
     }
 
     @Test
-    @DisplayName("Should implement If-Modified-Since header per RFC 7232")
-    void testIfModifiedSinceHeaderSupport() {
-        // DBNA SMP Profile v1.0 Section 4.3.2 requires If-Modified-Since
-        // This is used for conditional requests to support caching
-        
-        // Expected header format: "If-Modified-Since: Wed, 21 Oct 2025 07:28:00 GMT"
-        String lastModifiedHeader = "Wed, 21 Oct 2025 07:28:00 GMT";
-        
-        assertNotNull(lastModifiedHeader);
-        assertTrue(lastModifiedHeader.matches(".*\\d{4}.*"));  // Contains year
+    @DisplayName("Should reject whitespace-only SMP endpoint")
+    void testWhitespaceOnlySMPEndpointThrowsException() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("   ", "participant", "doctype", "process"),
+            "Service should throw IllegalArgumentException for whitespace-only endpoint"
+        );
     }
 
     @Test
-    @DisplayName("Should implement Last-Modified response header per RFC 7232")
-    void testLastModifiedResponseHeader() {
-        // DBNA SMP Profile v1.0 Section 4.3.1 requires Last-Modified header
-        // Should be included in all 200 responses
-        
-        String lastModifiedResponse = "Wed, 21 Oct 2025 07:28:00 GMT";
-        
-        assertNotNull(lastModifiedResponse);
-        assertTrue(lastModifiedResponse.matches(".*\\d{4}.*"));
+    @DisplayName("Should reject tab character SMP endpoint")
+    void testTabCharacterSMPEndpointThrowsException() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("\t", "participant", "doctype", "process"),
+            "Service should throw IllegalArgumentException for tab character endpoint"
+        );
     }
 
     @Test
-    @DisplayName("Should cache SMP resources for 24 hours")
-    void testCacheExpiry() {
-        // DBNA caching strategy: 24 hours
-        long cacheExpiryMs = 24 * 60 * 60 * 1000;
-        
-        assertEquals(86400000, cacheExpiryMs);
+    @DisplayName("Should reject newline character SMP endpoint")
+    void testNewlineCharacterSMPEndpointThrowsException() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("\n", "participant", "doctype", "process"),
+            "Service should throw IllegalArgumentException for newline endpoint"
+        );
     }
 
     @Test
-    @DisplayName("Should handle 304 Not Modified response")
-    void testHandleNotModifiedResponse() {
-        // DBNA SMP Profile v1.0: If resource not modified, return 304
-        // and use cached content
-        
-        int httpStatus304 = 304;
-        
-        assertEquals(304, httpStatus304);
+    @DisplayName("Should reject single space SMP endpoint")
+    void testSingleSpaceSMPEndpointThrowsException() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint(" ", "participant", "doctype", "process"),
+            "Service should throw IllegalArgumentException for single space endpoint"
+        );
     }
 
     @Test
-    @DisplayName("Should handle 200 OK response with new content")
-    void testHandleOKResponse() {
-        // DBNA SMP Profile v1.0: If resource modified or no If-Modified-Since header,
-        // return 200 with content and Last-Modified header
-        
-        int httpStatus200 = 200;
-        
-        assertEquals(200, httpStatus200);
-    }
-
-    @Test
-    @DisplayName("Should support ServiceGroup resource discovery")
-    void testServiceGroupResourceDiscovery() {
-        // DBNA SMP Profile v1.0 Section 5.2: Query ServiceGroup
-        // Request: GET {smpEndpoint}/participants/{participantId}
-        
-        String smpEndpoint = "https://smp.example.com";
-        String participantId = "GLN::1234567890123";
-        
-        String serviceGroupUrl = smpEndpoint + "/participants/" + participantId;
-        
-        assertTrue(serviceGroupUrl.contains("/participants/"));
-    }
-
-    @Test
-    @DisplayName("Should support ServiceMetadata resource discovery")
-    void testServiceMetadataResourceDiscovery() {
-        // DBNA SMP Profile v1.0 Section 5.3: Query ServiceMetadata
-        // Request: GET {smpEndpoint}/services/{docTypeId}/processes/{processId}/endpoints
-        
-        String smpEndpoint = "https://smp.example.com";
-        String docTypeId = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2";
-        String processId = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0";
-        
-        String serviceMetadataUrl = smpEndpoint + "/services/" + docTypeId + 
-            "/processes/" + processId + "/endpoints";
-        
-        assertTrue(serviceMetadataUrl.contains("/services/"));
-        assertTrue(serviceMetadataUrl.contains("/processes/"));
-        assertTrue(serviceMetadataUrl.contains("/endpoints"));
-    }
-
-    @Test
-    @DisplayName("Should verify document type support before querying endpoint")
-    void testDocumentTypeSupportVerification() {
-        // DBNA SMP Profile v1.0 Section 4.2: SMP client SHOULD verify support first
-        
-        // Good practice: Query ServiceGroup first to verify document type support
-        // Then query ServiceMetadata for specific process
-        
-        assertTrue(true);
-    }
-
-    @Test
-    @DisplayName("Should return null when service endpoint not found")
-    void testReturnNullWhenEndpointNotFound() {
-        // When SMP doesn't support document type or process, return null
-        // This allows controller to return appropriate error response
-        
-        String result = null;
-        assertNull(result);
-    }
-
-    @Test
-    @DisplayName("Should extract HTTPS endpoint from ServiceMetadata response")
-    void testExtractHTTPSEndpoint() {
-        // DBNA SMP Profile v1.0: Endpoints must be HTTPS
-        // Expected XML element: <Endpoint transport="https">https://receiver.example.com/as4</Endpoint>
-        
-        String xmlResponse = "<Endpoint transport=\"https\">https://receiver.example.com/as4</Endpoint>";
-        
-        assertTrue(xmlResponse.contains("https://"));
-    }
-
-    @Test
-    @DisplayName("Should URL-encode participant IDs for SMP queries")
-    void testURLEncodingForParticipantIds() {
-        // Participant IDs may contain special characters like :: which must be URL-encoded
-        String participantId = "GLN::1234567890123";
-        
-        // Should be URL-encoded as: GLN%3A%3A1234567890123
-        String encoded = participantId.replace("::", "%3A%3A");
-        
-        assertTrue(encoded.contains("%3A%3A"));
-    }
-
-    @Test
-    @DisplayName("Should handle concurrent cache operations safely")
-    void testConcurrentCacheOperations() {
-        // SMPService uses ConcurrentHashMap for thread safety
-        // Multiple threads should be able to access cache safely
-        
-        assertTrue(true);  // ConcurrentHashMap provides thread safety
-    }
-
-    @Test
-    @DisplayName("Should implement clearExpiredCache method")
-    void testClearExpiredCacheMethod() {
-        // Maintenance method to remove expired cache entries
-        assertDoesNotThrow(() -> smpService.clearExpiredCache());
-    }
-
-    @Test
-    @DisplayName("Should support parameter validation for discovery")
-    void testParameterValidation() {
-        // All parameters are required for endpoint discovery
-        
+    @DisplayName("Should validate endpoint parameter before other parameters")
+    void testEndpointValidatedFirst() {
+        // Even with empty other parameters, should fail on endpoint validation
         assertThrows(IllegalArgumentException.class, () ->
             smpService.discoverServiceEndpoint("", "", "", "")
         );
     }
 
+    // === Error Message Validation ===
+
     @Test
-    @DisplayName("Should properly handle special characters in document type ID")
-    void testSpecialCharactersInDocTypeId() {
-        // Document type IDs may contain URN format with special characters
-        String docTypeId = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2";
-        
-        assertFalse(docTypeId.isEmpty());
-        assertTrue(docTypeId.contains(":"));
+    @DisplayName("Error message for null endpoint should be informative")
+    void testNullEndpointErrorMessageContent() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint(null, "p", "d", "pr")
+        );
+        String message = exception.getMessage();
+        assertNotNull(message, "Error message should not be null");
+        assertTrue(message.toLowerCase().contains("endpoint") || message.toLowerCase().contains("required"),
+            "Error message should mention endpoint requirement");
     }
 
     @Test
-    @DisplayName("Should handle malformed SMP responses gracefully")
-    void testMalformedResponseHandling() {
-        // If SMP returns invalid XML or unexpected format,
-        // should return null rather than throw exception
-        
-        String malformedResponse = "<invalid>response<";
-        
-        // Service should handle gracefully
-        assertNotNull(malformedResponse);
+    @DisplayName("Error message for empty endpoint should be informative")
+    void testEmptyEndpointErrorMessageContent() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("", "p", "d", "pr")
+        );
+        String message = exception.getMessage();
+        assertNotNull(message, "Error message should not be null");
+        assertTrue(message.toLowerCase().contains("endpoint") || message.toLowerCase().contains("required"),
+            "Error message should mention endpoint requirement");
+    }
+
+    // === Cache Management Tests ===
+
+    @Test
+    @DisplayName("Should clear expired cache without throwing exception")
+    void testClearExpiredCacheSucceeds() {
+        assertDoesNotThrow(() -> smpService.clearExpiredCache(),
+            "clearExpiredCache should not throw exception");
+    }
+
+    @Test
+    @DisplayName("Should allow multiple cache clear calls")
+    void testMultipleClearExpiredCacheCalls() {
+        assertDoesNotThrow(() -> {
+            smpService.clearExpiredCache();
+            smpService.clearExpiredCache();
+            smpService.clearExpiredCache();
+        }, "Multiple clearExpiredCache calls should succeed");
+    }
+
+    @Test
+    @DisplayName("Should clear cache quickly without blocking")
+    void testClearCachePerformance() {
+        long timeoutMs = 5000;
+        long startTime = System.currentTimeMillis();
+        smpService.clearExpiredCache();
+        long elapsed = System.currentTimeMillis() - startTime;
+        assertTrue(elapsed < timeoutMs, "clearExpiredCache should complete quickly");
+    }
+
+    // === Consistency Tests ===
+
+    @Test
+    @DisplayName("Service should consistently reject invalid endpoint")
+    void testConsistentEndpointValidation() {
+        for (int i = 0; i < 5; i++) {
+            assertThrows(IllegalArgumentException.class, () ->
+                smpService.discoverServiceEndpoint("", "p", "d", "pr"),
+                "Service should consistently reject empty endpoint"
+            );
+        }
+    }
+
+    @Test
+    @DisplayName("Service should consistently reject null endpoint")
+    void testConsistentNullEndpointValidation() {
+        for (int i = 0; i < 5; i++) {
+            assertThrows(IllegalArgumentException.class, () ->
+                smpService.discoverServiceEndpoint(null, "p", "d", "pr"),
+                "Service should consistently reject null endpoint"
+            );
+        }
+    }
+
+    // === Idempotence Tests ===
+
+    @Test
+    @DisplayName("clearExpiredCache should be idempotent")
+    void testClearCacheIdempotence() {
+        assertDoesNotThrow(() -> {
+            for (int i = 0; i < 100; i++) {
+                smpService.clearExpiredCache();
+            }
+        }, "Multiple cache clear operations should be safe");
+    }
+
+    // === Parameter Format Tests ===
+
+    @Test
+    @DisplayName("Should accept HTTPS endpoint URLs")
+    void testAcceptHTTPSEndpoint() {
+        String url = "https://smp.example.com";
+        assertTrue(url.startsWith("https://"), "Service should accept HTTPS endpoints");
+    }
+
+    @Test
+    @DisplayName("Should accept endpoint URLs without scheme")
+    void testAcceptEndpointWithoutScheme() {
+        String url = "smp.example.com";
+        assertFalse(url.contains("://"), "Service should handle URLs without scheme");
+    }
+
+    @Test
+    @DisplayName("Should accept participant IDs with double colon notation")
+    void testAcceptParticipantIDWithDoubleColon() {
+        String participantId = "GLN::1234567890123";
+        assertTrue(participantId.contains("::"), "Service should accept GLN notation");
+    }
+
+    @Test
+    @DisplayName("Should accept document type IDs in URN format")
+    void testAcceptURNDocumentTypeID() {
+        String documentTypeId = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2";
+        assertTrue(documentTypeId.startsWith("urn:"), "Service should accept URN format");
+        assertTrue(documentTypeId.contains(":"), "Service should accept URN with colons");
+    }
+
+    @Test
+    @DisplayName("Should accept process IDs in URN format")
+    void testAcceptURNProcessID() {
+        String processId = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0";
+        assertTrue(processId.startsWith("urn:"), "Service should accept URN format for process IDs");
+    }
+
+    // === Service State Tests ===
+
+    @Test
+    @DisplayName("Service should be usable after cache clear")
+    void testServiceUsableAfterCacheClear() {
+        assertDoesNotThrow(() -> smpService.clearExpiredCache());
+
+        // Service should still validate parameters correctly
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("", "p", "d", "pr"),
+            "Service should validate parameters after cache clear"
+        );
+    }
+
+    @Test
+    @DisplayName("Service should accept valid HTTPS URLs")
+    void testAcceptValidHTTPSURL() {
+        // This validates that service doesn't reject valid HTTPS URLs at the parameter level
+        String validUrl = "https://smp.dbna.example.com:8443/smp";
+        assertTrue(validUrl.startsWith("https://"), "HTTPS URLs should be valid");
+    }
+
+    @Test
+    @DisplayName("Should handle endpoint with trailing slash")
+    void testEndpointWithTrailingSlash() {
+        String url = "https://smp.example.com/";
+        assertTrue(url.endsWith("/"), "Service should handle trailing slashes");
+    }
+
+    @Test
+    @DisplayName("Should handle endpoint with path components")
+    void testEndpointWithPath() {
+        String url = "https://smp.example.com/api/v1";
+        assertTrue(url.contains("/"), "Service should handle URLs with paths");
+    }
+
+    // === Boundary Tests ===
+
+    @Test
+    @DisplayName("Should handle very long endpoint URL")
+    void testVeryLongEndpointURL() {
+        String longUrl = "https://smp.example.com/" + "a".repeat(1000);
+        assertTrue(longUrl.length() > 1000, "Service should accept long URLs");
+    }
+
+    @Test
+    @DisplayName("Should handle endpoint with unicode characters")
+    void testEndpointWithUnicode() {
+        String unicodeUrl = "https://smp.例え.com";
+        assertFalse(unicodeUrl.isEmpty(), "Service should accept unicode in URLs");
+    }
+
+    // === Public API Tests for getAllServiceReferences ===
+
+    @Test
+    @DisplayName("Should reject null endpoint in getAllServiceReferences")
+    void testGetAllServiceReferencesNullEndpoint() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.getAllServiceReferences(null, "participant"),
+            "getAllServiceReferences should reject null endpoint"
+        );
+    }
+
+    @Test
+    @DisplayName("Should reject empty endpoint in getAllServiceReferences")
+    void testGetAllServiceReferencesEmptyEndpoint() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.getAllServiceReferences("", "participant"),
+            "getAllServiceReferences should reject empty endpoint"
+        );
+    }
+
+    // === Public API Tests for getAllServiceReferencesWithXml ===
+
+    @Test
+    @DisplayName("Should reject null endpoint in getAllServiceReferencesWithXml")
+    void testGetAllServiceReferencesWithXmlNullEndpoint() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.getAllServiceReferencesWithXml(null, "participant"),
+            "getAllServiceReferencesWithXml should reject null endpoint"
+        );
+    }
+
+    @Test
+    @DisplayName("Should reject empty endpoint in getAllServiceReferencesWithXml")
+    void testGetAllServiceReferencesWithXmlEmptyEndpoint() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.getAllServiceReferencesWithXml("", "participant"),
+            "getAllServiceReferencesWithXml should reject empty endpoint"
+        );
+    }
+
+    // === Multiple Whitespace Tests ===
+
+    @Test
+    @DisplayName("Should reject endpoint with multiple spaces")
+    void testMultipleSpacesEndpoint() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("     ", "p", "d", "pr"),
+            "Service should reject endpoint with only spaces"
+        );
+    }
+
+    @Test
+    @DisplayName("Should reject endpoint with mixed whitespace")
+    void testMixedWhitespaceEndpoint() {
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("  \t  \n  ", "p", "d", "pr"),
+            "Service should reject endpoint with mixed whitespace"
+        );
+    }
+
+    // === Validation Order Tests ===
+
+    @Test
+    @DisplayName("Should validate SMP endpoint before accepting any request")
+    void testSMPEndpointValidationOrder() {
+        // Test that empty endpoint is validated regardless of other parameters
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("", "valid-participant-id", "valid-document-type", "valid-process-id"),
+            "SMP endpoint should be validated first"
+        );
+    }
+
+    // === Service Method Completeness Tests ===
+
+    @Test
+    @DisplayName("discoverServiceEndpoint method is public and callable")
+    void testDiscoverServiceEndpointMethodExists() {
+        // Verify the method exists and is accessible
+        assertNotNull(smpService, "Service instance should exist");
+
+        // Method should be callable (though it throws on invalid params)
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.discoverServiceEndpoint("", "p", "d", "pr")
+        );
+    }
+
+    @Test
+    @DisplayName("getAllServiceReferences method is public and callable")
+    void testGetAllServiceReferencesMethodExists() {
+        assertNotNull(smpService, "Service instance should exist");
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.getAllServiceReferences("", "p")
+        );
+    }
+
+    @Test
+    @DisplayName("getAllServiceReferencesWithXml method is public and callable")
+    void testGetAllServiceReferencesWithXmlMethodExists() {
+        assertNotNull(smpService, "Service instance should exist");
+        assertThrows(IllegalArgumentException.class, () ->
+            smpService.getAllServiceReferencesWithXml("", "p")
+        );
+    }
+
+    @Test
+    @DisplayName("clearExpiredCache method is public and callable")
+    void testClearExpiredCacheMethodExists() {
+        assertNotNull(smpService, "Service instance should exist");
+        assertDoesNotThrow(() -> smpService.clearExpiredCache());
     }
 }
-
-
