@@ -1,5 +1,6 @@
 package com.opuscapita.dbna.outbound.service;
 
+import com.opuscapita.dbna.outbound.exception.SMPDiscoveryException;
 import com.opuscapita.dbna.outbound.model.SMPServiceInfo;
 import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
@@ -85,6 +86,9 @@ public class SMPService {
                 serviceGroupXml = executeHttpGet(serviceGroupUrl);
                 logger.debug("ServiceGroup resource retrieved successfully");
                 serviceReference = extractServiceReferenceFromServiceGroup(serviceGroupXml, documentTypeId);
+            } catch (SMPDiscoveryException e) {
+                logger.warn("Failed to retrieve ServiceGroup resource: HTTP {} from SMP", e.getSmpHttpStatusCode());
+                throw e;
             } catch (Exception e) {
                 logger.warn("Failed to retrieve ServiceGroup resource: {}", e.getMessage());
             }
@@ -116,6 +120,9 @@ public class SMPService {
                 logger.warn("No service endpoint found for serviceReference: {}, process: {}", serviceReference, processId);
                 return null;
             }
+        } catch (SMPDiscoveryException e) {
+            logger.error("SMP service discovery failed with HTTP error: {}", e.getSmpHttpStatusCode(), e);
+            throw new Exception("SMP service discovery failed (HTTP " + e.getSmpHttpStatusCode() + "): " + e.getMessage(), e);
         } catch (Exception e) {
             logger.error("Error discovering service endpoint from SMP", e);
             throw new Exception("SMP service discovery failed: " + e.getMessage(), e);
@@ -139,6 +146,9 @@ public class SMPService {
 
             // Parse XML and acquire the exact serviceReference for the document type
             return extractServiceReferenceFromServiceGroup(response, documentTypeId);
+        } catch (SMPDiscoveryException e) {
+            logger.warn("Failed to retrieve ServiceGroup resource: HTTP {} from SMP", e.getSmpHttpStatusCode());
+            return null;
         } catch (Exception e) {
             logger.warn("Failed to retrieve ServiceGroup resource: {}", e.getMessage());
             return null;
@@ -160,6 +170,9 @@ public class SMPService {
 
             // Parse XML and check if document type is supported
             return isDocumentTypeSupportedInServiceGroup(response, documentTypeId);
+        } catch (SMPDiscoveryException e) {
+            logger.warn("Failed to retrieve ServiceGroup resource: HTTP {} from SMP", e.getSmpHttpStatusCode());
+            return false;
         } catch (Exception e) {
             logger.warn("Failed to retrieve ServiceGroup resource: {}", e.getMessage());
             return false;
@@ -170,7 +183,7 @@ public class SMPService {
       * Queries the ServiceMetadata resource to get the XML response for a specific serviceReference and process
       * The XML contains both endpoint URL and certificate information
       */
-     private String queryServiceMetadataXML(String smpEndpoint, String participantId, String serviceReference, String processId) {
+     private String queryServiceMetadataXML(String smpEndpoint, String participantId, String serviceReference, String processId) throws SMPDiscoveryException {
          String serviceMetadataUrl = buildServiceMetadataUrl(smpEndpoint, participantId, serviceReference);
 
          logger.debug("Querying ServiceMetadata resource: {}", serviceMetadataUrl);
@@ -179,7 +192,10 @@ public class SMPService {
              String response = executeHttpGet(serviceMetadataUrl);
              logger.debug("ServiceMetadata resource retrieved successfully");
              return response;
-         } catch (Exception e) {
+         } catch (SMPDiscoveryException e) {
+             logger.warn("Failed to retrieve ServiceMetadata resource: HTTP {} from SMP", e.getSmpHttpStatusCode());
+             throw e;
+         } catch (IOException e) {
              logger.warn("Failed to retrieve ServiceMetadata resource: {}", e.getMessage());
              return null;
          }
@@ -188,7 +204,7 @@ public class SMPService {
      /**
       * Queries the ServiceMetadata resource to get the endpoint for a specific serviceReference and process
       */
-    private String queryServiceEndpoint(String smpEndpoint, String participantId, String serviceReference, String processId) {
+    private String queryServiceEndpoint(String smpEndpoint, String participantId, String serviceReference, String processId) throws SMPDiscoveryException {
          String serviceMetadataUrl = buildServiceMetadataUrl(smpEndpoint, participantId, serviceReference);
 
          logger.debug("Querying ServiceMetadata resource: {}", serviceMetadataUrl);
@@ -199,7 +215,10 @@ public class SMPService {
 
              // Parse endpoint from response XML
              return extractEndpointFromXML(response);
-         } catch (Exception e) {
+         } catch (SMPDiscoveryException e) {
+             logger.warn("Failed to retrieve ServiceMetadata resource: HTTP {} from SMP", e.getSmpHttpStatusCode());
+             throw e;
+         } catch (IOException e) {
              logger.warn("Failed to retrieve ServiceMetadata resource: {}", e.getMessage());
              return null;
          }
@@ -207,8 +226,13 @@ public class SMPService {
 
     /**
      * Executes an HTTP GET request with caching support
+     *
+     * @param url The URL to query
+     * @return The response content
+     * @throws SMPDiscoveryException if a valid HTTP error response is received from SMP (status code not 200 or 304)
+     * @throws IOException if there's a network error or other I/O exception
      */
-    private String executeHttpGet(String url) throws IOException {
+    private String executeHttpGet(String url) throws IOException, SMPDiscoveryException {
         CachedSMPResource cached = resourceCache.get(url);
         
         HttpGet httpGet = new HttpGet(url);
@@ -245,7 +269,13 @@ public class SMPService {
                     return content;
                 }
                 
-                throw new IOException("HTTP " + statusCode + " response from SMP service");
+                // Valid HTTP error response from SMP - throw SMPDiscoveryException
+                logger.warn("SMP returned HTTP error response: {} for URL: {}", statusCode, url);
+                throw new SMPDiscoveryException(
+                    "SMP service returned HTTP " + statusCode + " error",
+                    statusCode,
+                    url
+                );
             });
             
             return response;
@@ -554,6 +584,10 @@ public class SMPService {
              logger.debug("ServiceGroup resource retrieved successfully");
 
              return extractAllServiceReferencesFromServiceGroup(response);
+        } catch (SMPDiscoveryException e) {
+            logger.error("Failed to retrieve all service references from SMP: HTTP {} from {}",
+                e.getSmpHttpStatusCode(), e.getSmpEndpoint(), e);
+            throw new Exception("Failed to retrieve service references (HTTP " + e.getSmpHttpStatusCode() + "): " + e.getMessage(), e);
         } catch (Exception e) {
             logger.error("Failed to retrieve all service references from SMP", e);
             throw new Exception("Failed to retrieve service references: " + e.getMessage(), e);
@@ -591,6 +625,10 @@ public class SMPService {
             result.put("serviceGroupXml", response);
             
             return result;
+        } catch (SMPDiscoveryException e) {
+            logger.error("Failed to retrieve all service references from SMP: HTTP {} from {}",
+                e.getSmpHttpStatusCode(), e.getSmpEndpoint(), e);
+            throw new Exception("Failed to retrieve service references (HTTP " + e.getSmpHttpStatusCode() + "): " + e.getMessage(), e);
         } catch (Exception e) {
             logger.error("Failed to retrieve all service references from SMP", e);
             throw new Exception("Failed to retrieve service references: " + e.getMessage(), e);
