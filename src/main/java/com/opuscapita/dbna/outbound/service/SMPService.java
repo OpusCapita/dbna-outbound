@@ -269,13 +269,23 @@ public class SMPService {
                     return content;
                 }
 
-                // Valid HTTP error response from SMP - throw SMPDiscoveryException
-                logger.warn("SMP returned HTTP error response: {} for URL: {}", statusCode, url);
-                throw new SMPDiscoveryException(
-                    "SMP service returned HTTP " + statusCode + " error",
-                    statusCode,
-                    url
-                );
+                // Valid HTTP error response from SMP - capture error details
+                String errorBody = null;
+                try {
+                    errorBody = EntityUtils.toString(httpResponse.getEntity());
+                } catch (Exception e) {
+                    logger.debug("Failed to read SMP error response body: {}", e.getMessage());
+                }
+
+                String errorMessage = "SMP service returned HTTP " + statusCode + " error";
+                if (errorBody != null && !errorBody.trim().isEmpty()) {
+                    errorMessage += ": " + errorBody;
+                    logger.warn("SMP returned HTTP error response: {} for URL: {}. Body: {}", statusCode, url, errorBody);
+                } else {
+                    logger.warn("SMP returned HTTP error response: {} for URL: {}", statusCode, url);
+                }
+
+                throw new SMPDiscoveryException(errorMessage, statusCode, url);
             });
         } finally {
             httpGet.reset();
@@ -294,7 +304,7 @@ public class SMPService {
       * <p>
       * XML Structure example:
       * <sma:Endpoint>
-      *   <smb:AddressURI>https://example.com/as4</smb:AddressURI>
+      *   <smb:AddressURI><a href="https://example.com/as4">https://example.com/as4</a></smb:AddressURI>
       *   <sma:Certificate>
       *     <smb:TypeCode>bdxr-as4-signing-encryption</smb:TypeCode>
       *     <smb:ActivationDate>2021-09-01Z</smb:ActivationDate>
@@ -457,7 +467,7 @@ public class SMPService {
       */
      private String urlEncode(String value) {
          try {
-             return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8.name());
+             return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
          } catch (Exception e) {
              logger.warn("Failed to URL encode value: {}", value);
              return value;
