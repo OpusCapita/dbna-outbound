@@ -31,8 +31,13 @@ WORKDIR /app
 COPY --from=builder /build/build/libs/*.jar app.jar
 
 # Create necessary directories with proper permissions
-RUN mkdir -p /app/storage /app/config && \
+RUN mkdir -p /app/storage /app/config /app/test && \
     chown -R appuser:appuser /app
+
+# Copy test files
+COPY --from=builder /build/src/test/resources/examples/sample-invoice.xml /app/test/
+COPY --from=builder /build/src/test/resources/examples/send-document-curl.sh /app/test/
+RUN chmod +x /app/test/send-document-curl.sh
 
 # Switch to non-root user
 USER appuser
