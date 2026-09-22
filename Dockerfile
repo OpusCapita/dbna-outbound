@@ -18,8 +18,8 @@ LABEL author="Kamil Barnik <kamil.barnik@gep.com>"
 LABEL maintainer="GEP DBNA Team"
 LABEL description="DBNA Outbound Service"
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install curl for health checks and bash for scripts
+RUN apk add --no-cache curl bash
 
 # Create app user for security
 RUN addgroup -g 1000 appuser && \
