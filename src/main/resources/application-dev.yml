@@ -48,6 +48,9 @@ as4:
 logging:
   level:
     com.opuscapita.dbna: DEBUG
+    com.opuscapita.dbna.outbound.service.AS4SendService: TRACE
+    com.opuscapita.dbna.outbound.service.XHEEnvelopeService: TRACE
+    com.opuscapita.dbna.outbound.controller.AS4SendController: TRACE
     com.helger.phase4: DEBUG
     com.helger.commons: INFO
     org.springframework.web: DEBUG

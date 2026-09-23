@@ -12,6 +12,7 @@ import com.opuscapita.dbna.outbound.service.CertificateValidationService;
 import com.opuscapita.dbna.outbound.service.SMLLookupService;
 import com.opuscapita.dbna.outbound.service.SMPService;
 import com.opuscapita.dbna.outbound.service.UBLDocumentService;
+import com.opuscapita.dbna.outbound.util.XmlUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -107,8 +108,8 @@ public class AS4SendController {
 
                 senderId, receiverId, docTypeId, processId,
                 documentContent != null ? documentContent.length() : 0);
-        logger.debug("Document content preview (first 200 chars): {}",
-                documentContent != null && documentContent.length() > 200 ? documentContent.substring(0, 200) + "..." : documentContent);
+        logger.trace("Document content (full, pretty-printed):\n{}",
+                documentContent != null ? XmlUtil.prettyPrintXml(documentContent.getBytes(java.nio.charset.StandardCharsets.UTF_8)) : documentContent);
 
         // Step 1: Validate document is valid UBL 2.3 XML
         logger.info("Step 1: Validating document is valid UBL 2.3 XML");

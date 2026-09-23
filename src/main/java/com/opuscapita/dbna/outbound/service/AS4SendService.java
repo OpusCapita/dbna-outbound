@@ -18,6 +18,7 @@ import com.opuscapita.dbna.common.container.ContainerMessage;
 import com.opuscapita.dbna.outbound.model.TransmissionResponse;
 import com.opuscapita.dbna.outbound.model.SMPServiceInfo;
 import com.opuscapita.dbna.common.storage.Storage;
+import com.opuscapita.dbna.outbound.util.XmlUtil;
 import lombok.Getter;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -461,11 +462,9 @@ public class AS4SendService implements SendService {
                     int uncompressedSize = payloadBytes.length;
                     logger.debug("=== PAYLOAD DETAILS ===");
                     if (xheAvoid) {
-                        logger.debug("Payload content (first 200 chars):\n{}", payloadContent.length() > 200 ?
-                                payloadContent.substring(0, 200) + "..." : payloadContent);
+                        logger.trace("Payload content (full, pretty-printed):\n{}", XmlUtil.prettyPrintXml(payloadBytes));
                     } else {
-                        logger.debug("XHE-wrapped payload preview (first 200 chars):\n{}", payloadContent.length() > 200 ?
-                                payloadContent.substring(0, 200) + "..." : payloadContent);
+                        logger.trace("XHE-wrapped payload (full, pretty-printed):\n{}", XmlUtil.prettyPrintXml(payloadBytes));
                     }
                     logger.debug("Uncompressed payload size: {} bytes", uncompressedSize);
                     logger.debug("Envelope Mode: {}", xheAvoid ? "STANDALONE (UBL only)" : "XHE (with header)");

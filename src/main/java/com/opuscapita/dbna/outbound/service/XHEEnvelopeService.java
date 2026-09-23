@@ -1,5 +1,6 @@
 package com.opuscapita.dbna.outbound.service;
 
+import com.opuscapita.dbna.outbound.util.XmlUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -163,8 +164,7 @@ public class XHEEnvelopeService {
             String xheEnvelopeContent = documentToString(xheDocument);
 
             logger.info("XHE envelope created successfully");
-            logger.debug("XHE envelope preview (first 300 chars): {}", xheEnvelopeContent.length() > 300 ?
-                    xheEnvelopeContent.substring(0, 300) + "..." : xheEnvelopeContent);
+            logger.trace("XHE envelope (full, pretty-printed):\n{}", XmlUtil.prettyPrintXml(xheEnvelopeContent.getBytes(StandardCharsets.UTF_8)));
 
             return xheEnvelopeContent;
 
