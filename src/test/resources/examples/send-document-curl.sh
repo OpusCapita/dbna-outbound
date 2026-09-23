@@ -11,14 +11,22 @@
 #   - API token (default: "changeit", can be overridden)
 #
 # Usage:
-#   # Using default token "changeit":
+#   # Using defaults:
 #   ./send-document-curl.sh
 #
-#   # With custom token via environment variable:
-#   AS4_API_TOKEN="your-secret-token" ./send-document-curl.sh
-#
-#   # With custom token as first argument:
+#   # With custom token:
 #   ./send-document-curl.sh "your-secret-token"
+#
+#   # With custom receiver ID:
+#   ./send-document-curl.sh "FI:OVT::custom-receiver-id"
+#
+#   # With both token and receiver ID (auto-detected by format):
+#   ./send-document-curl.sh "your-secret-token" "FI:OVT::custom-receiver-id"
+#   ./send-document-curl.sh "FI:OVT::custom-receiver-id" "your-secret-token"
+#
+#   # With environment variables:
+#   AS4_API_TOKEN="your-secret-token" ./send-document-curl.sh
+#   AS4_RECEIVER_ID="FI:OVT::custom-receiver-id" ./send-document-curl.sh
 
 set -e
 
@@ -26,17 +34,29 @@ set -e
 SERVICE_URL="http://localhost:3310"
 SEND_ENDPOINT="/api/as4/send"
 
-# API Token for Authorization
-# Priority: command line argument > environment variable > default (changeit)
-if [ -n "$1" ]; then
-  API_TOKEN="$1"
-else
-  API_TOKEN="${AS4_API_TOKEN:-changeit}"
-fi
+# API Token and Receiver ID
+# These can be provided as arguments, environment variables, or defaults
+# Arguments are auto-detected by format: receiver IDs contain ":", tokens don't
+# Priority: command line arguments > environment variables > defaults
 
-# Identifiers (Sender, Receiver)
+# Initialize with defaults
+API_TOKEN="${AS4_API_TOKEN:-changeit}"
+RECEIVER_ID="${AS4_RECEIVER_ID:-FI:OVT::003728468254}"
+
+# Parse command line arguments
+# Arguments are auto-detected by presence of ":" (receiver ID has it, token doesn't)
+for arg in "$@"; do
+  if [[ "$arg" == *":"* ]]; then
+    # Contains ":", so it's a receiver ID
+    RECEIVER_ID="$arg"
+  else
+    # No ":", so it's a token
+    API_TOKEN="$arg"
+  fi
+done
+
+# Sender ID
 SENDER_ID="FI:OVT::003728468254"
-RECEIVER_ID="FI:OVT::003728468254"
 
 # Document Type Identifier (UBL Invoice)
 DOC_TYPE_ID="bdx-docid-qns::urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##DBNAlliance-1.0-data-Core"
