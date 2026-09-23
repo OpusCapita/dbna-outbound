@@ -39,7 +39,7 @@ SENDER_ID="FI:OVT::003728468254"
 RECEIVER_ID="FI:OVT::003728468254"
 
 # Document Type Identifier (UBL Invoice)
-DOC_TYPE_ID="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##DBNAlliance-1.0-data-Core"
+DOC_TYPE_ID="bdx-docid-qns::urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##DBNAlliance-1.0-data-Core"
 
 # Process Identifier (no process)
 PROCESS_ID="bdx:noprocess"

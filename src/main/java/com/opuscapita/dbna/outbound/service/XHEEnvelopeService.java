@@ -53,16 +53,16 @@ public class XHEEnvelopeService {
      * Wraps a UBL document in an XHE envelope
      *
      * @param ublDocumentContent The UBL XML document content as string
-     * @param senderId Sender party identifier
-     * @param receiverId Receiver party identifier
-     * @param customizationId Document customization ID (e.g., UBL CustomizationID)
-     * @param profileId Document profile ID (e.g., UBL ProfileID)
-     * @param messageId Unique message identifier
+     * @param senderId           Sender party identifier
+     * @param receiverId         Receiver party identifier
+     * @param customizationId    Document customization ID (e.g., UBL CustomizationID)
+     * @param profileId          Document profile ID (e.g., UBL ProfileID)
+     * @param messageId          Unique message identifier
      * @return XHE envelope XML as string
      * @throws Exception if envelope creation fails
      */
     public String wrapInXHEEnvelope(String ublDocumentContent, String senderId, String receiverId,
-                                     String customizationId, String profileId, String messageId) throws Exception {
+                                    String customizationId, String profileId, String messageId) throws Exception {
         logger.info("Creating XHE envelope for document - Sender: {}, Receiver: {}", senderId, receiverId);
 
         try {
@@ -164,7 +164,7 @@ public class XHEEnvelopeService {
 
             logger.info("XHE envelope created successfully");
             logger.debug("XHE envelope preview (first 300 chars): {}", xheEnvelopeContent.length() > 300 ?
-                xheEnvelopeContent.substring(0, 300) + "..." : xheEnvelopeContent);
+                    xheEnvelopeContent.substring(0, 300) + "..." : xheEnvelopeContent);
 
             return xheEnvelopeContent;
 
@@ -192,7 +192,7 @@ public class XHEEnvelopeService {
     private String documentToString(Document document) throws Exception {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         TransformerFactory.newInstance().newTransformer()
-            .transform(new DOMSource(document), new StreamResult(outputStream));
+                .transform(new DOMSource(document), new StreamResult(outputStream));
         return outputStream.toString(StandardCharsets.UTF_8);
     }
 }

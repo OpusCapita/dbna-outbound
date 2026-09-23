@@ -519,6 +519,12 @@ public class SMPService {
 
             logger.debug("Found {} ServiceReference elements in ServiceGroup", serviceReferences.getLength());
 
+            // Strip the scheme prefix from the requested documentTypeId if present
+            // Per OASIS ebMS3: Document Type IDs may be supplied as scheme::identifier##profile
+            // But SMP returns them as scheme attribute + identifier value (without prefix)
+            String documentTypeIdToMatch = stripSchemePrefix(documentTypeId);
+            logger.debug("Stripped documentTypeId for matching: {} (original: {})", documentTypeIdToMatch, documentTypeId);
+
             // Check each ServiceReference for matching document type ID
             for (int i = 0; i < serviceReferences.getLength(); i++) {
                 Element serviceRef = (Element) serviceReferences.item(i);
@@ -534,8 +540,8 @@ public class SMPService {
 
                     logger.debug("Found supported document type: {} (schemeID: {})", supportedDocType, schemeID);
 
-                    // Check if this matches the requested document type
-                    if (supportedDocType != null && supportedDocType.equals(documentTypeId)) {
+                    // Check if this matches the requested document type (without scheme prefix)
+                    if (supportedDocType != null && supportedDocType.equals(documentTypeIdToMatch)) {
                         // Return the serviceReference as schemeID::documentTypeId
                         String serviceReference = !schemeID.isEmpty()
                             ? schemeID + "::" + supportedDocType
@@ -694,6 +700,36 @@ public class SMPService {
             logger.error("Failed to parse ServiceGroup XML: {}", e.getMessage(), e);
             return result;
         }
+    }
+
+    /**
+     * Strips the scheme prefix from a document type identifier.
+     * Per OASIS ebMS3: Document Type IDs may be supplied as scheme::identifier##profile
+     * This method extracts just the identifier##profile part.
+     * <p>
+     * Example: "bdx-docid-qns::urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##DBNAlliance-1.0-data-Core"
+     * Returns: "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##DBNAlliance-1.0-data-Core"
+     * <p>
+     * If no scheme prefix is found (no :: separator), returns the input unchanged.
+     *
+     * @param documentTypeId The document type identifier, possibly with scheme prefix
+     * @return The identifier without the scheme prefix
+     */
+    private String stripSchemePrefix(String documentTypeId) {
+        if (documentTypeId == null || documentTypeId.trim().isEmpty()) {
+            return documentTypeId;
+        }
+        
+        // Check if there's a scheme prefix (format: scheme::identifier)
+        int separatorIndex = documentTypeId.indexOf("::");
+        if (separatorIndex > 0) {
+            String stripped = documentTypeId.substring(separatorIndex + 2);
+            logger.debug("Stripped scheme prefix from: {} → {}", documentTypeId, stripped);
+            return stripped;
+        }
+        
+        // No scheme prefix found, return as-is
+        return documentTypeId;
     }
 
     /**

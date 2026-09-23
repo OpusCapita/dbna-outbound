@@ -1,4 +1,5 @@
 package com.opuscapita.dbna.outbound.service;
+
 import com.helger.commons.io.stream.StringInputStream;
 import com.helger.commons.mime.CMimeType;
 import com.helger.phase4.crypto.IAS4CryptoFactory;
@@ -30,6 +31,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+
 /**
  * Service for sending UBL 2.3 documents via AS4 protocol to DBNA network with X.509 certificate support
  * <p>
@@ -133,7 +135,7 @@ public class AS4SendService implements SendService {
     public TransmissionResponse send(ContainerMessage cm) throws Exception {
         logger.info("AS4SendService.send() called for message: {}", cm.getFileName());
         logger.debug("AS4 Configuration - Max Retries: {}, Retry Delay: {} ms, Timeout: {} ms ({} minutes)",
-            maxRetryAttempts, retryDelayMs, timeoutMs, timeoutMs / 60000);
+                maxRetryAttempts, retryDelayMs, timeoutMs, timeoutMs / 60000);
 
         // Check for test error scenarios
         DummyResponse.throwExceptionIfExpectedInFilename(cm);
@@ -149,28 +151,29 @@ public class AS4SendService implements SendService {
 
         // Determine receiver endpoint URL and certificate
         SMPServiceInfo serviceInfo = resolveReceiverServiceInfo(
-            cm.getMetadata().getRecipientId(),
-            cm.getMetadata().getDocumentTypeIdentifier(),
-            cm.getMetadata().getProfileTypeIdentifier()
+                cm.getMetadata().getRecipientId(),
+                cm.getMetadata().getDocumentTypeIdentifier(),
+                cm.getMetadata().getProfileTypeIdentifier()
         );
 
         // Extract metadata from ContainerMessage to build AS4SendRequest
-         AS4SendRequest request = AS4SendRequest.builder()
-              .ublDocumentContent(ublContent)
-              .receiverEndpointUrl(serviceInfo.getEndpointUrl())
-              .senderId(cm.getMetadata().getSenderId())
-              .receiverId(cm.getMetadata().getRecipientId())
-                 .service(serviceInfo.getServiceReference())
-              .conversationId(cm.getMetadata().getMessageId())
-              .documentType(cm.getMetadata().getDocumentTypeIdentifier())
-              .processId(cm.getMetadata().getProfileTypeIdentifier())
-               .signMessage(true)  // Always sign AS4 messages for DBNA
-               .encryptMessage(true)  // Enable encryption per DBNA spec - receiver certificate from SMP will be used for AES-256-GCM encryption
-               .receiverCertificate(serviceInfo.getReceiverCertificate())  // Add receiver certificate for truststore injection
-              .build();
+        AS4SendRequest request = AS4SendRequest.builder()
+                .ublDocumentContent(ublContent)
+                .receiverEndpointUrl(serviceInfo.getEndpointUrl())
+                .senderId(cm.getMetadata().getSenderId())
+                .receiverId(cm.getMetadata().getRecipientId())
+                .service(serviceInfo.getServiceReference())
+                .action(cm.getMetadata().getDocumentTypeIdentifier())  // Per OASIS ebMS3: Action contains Document Type Identifier with format scheme::identifier##profile
+                .conversationId(cm.getMetadata().getMessageId())
+                .documentType(cm.getMetadata().getDocumentTypeIdentifier())
+                .processId(cm.getMetadata().getProfileTypeIdentifier())
+                .signMessage(true)  // Always sign AS4 messages for DBNA
+                .encryptMessage(true)  // Enable encryption per DBNA spec - receiver certificate from SMP will be used for AES-256-GCM encryption
+                .receiverCertificate(serviceInfo.getReceiverCertificate())  // Add receiver certificate for truststore injection
+                .build();
 
         logger.info("Sending AS4 message for file: {} to endpoint: {}",
-            cm.getFileName(), request.getReceiverEndpointUrl());
+                cm.getFileName(), request.getReceiverEndpointUrl());
 
         // Send via AS4 protocol
         AS4SendResponse as4Response = sendAS4Message(request);
@@ -184,7 +187,7 @@ public class AS4SendService implements SendService {
         }
 
         logger.info("AS4 transmission successful for {} with message ID: {}",
-            cm.getFileName(), as4Response.getMessageId());
+                cm.getFileName(), as4Response.getMessageId());
 
         return response;
     }
@@ -196,9 +199,9 @@ public class AS4SendService implements SendService {
      * However, SMP is ALWAYS queried to obtain the receiver certificate for validation and encryption.
      * This ensures certificate pinning even when endpoint URL is overridden.
      *
-     * @param receiverId Receiver party identifier (scheme::id)
+     * @param receiverId     Receiver party identifier (scheme::id)
      * @param documentTypeId Document type identifier
-     * @param processId Business process identifier
+     * @param processId      Business process identifier
      * @return SMPServiceInfo with endpoint URL and certificate
      * @throws Exception if SMP query fails
      */
@@ -229,8 +232,8 @@ public class AS4SendService implements SendService {
 
         if (serviceInfo == null) {
             throw new IllegalStateException(
-                String.format("Failed to discover receiver service info from SMP for documentType: %s, process: %s",
-                    documentTypeId, processId));
+                    String.format("Failed to discover receiver service info from SMP for documentType: %s, process: %s",
+                            documentTypeId, processId));
         }
 
         // Use override endpoint if configured, but keep the certificate from SMP
@@ -241,20 +244,20 @@ public class AS4SendService implements SendService {
 
         if (!isValidString(finalEndpointUrl)) {
             throw new IllegalStateException(
-                String.format("Failed to determine receiver endpoint for documentType: %s, process: %s",
-                    documentTypeId, processId));
+                    String.format("Failed to determine receiver endpoint for documentType: %s, process: %s",
+                            documentTypeId, processId));
         }
 
         // If endpoint was overridden, log this
         if (isValidString(receiverEndpointOverride)) {
             logger.info("Using configured receiver endpoint override: {} (from SMP: {})",
-                finalEndpointUrl, serviceInfo.getEndpointUrl());
+                    finalEndpointUrl, serviceInfo.getEndpointUrl());
         } else {
             logger.info("Using endpoint from SMP: {}", finalEndpointUrl);
         }
 
         logger.info("Successfully resolved receiver service info - endpoint: {}, certificate available: {}",
-            finalEndpointUrl, serviceInfo.hasCertificateInfo());
+                finalEndpointUrl, serviceInfo.hasCertificateInfo());
 
         // Create new SMPServiceInfo with final endpoint URL and SMP certificate
         SMPServiceInfo finalServiceInfo = new SMPServiceInfo(finalEndpointUrl, serviceInfo.getReceiverCertificate(), serviceInfo.getServiceReference());
@@ -274,9 +277,9 @@ public class AS4SendService implements SendService {
      * Resolves the receiver endpoint URL by checking override first, then querying SMP if needed
      * This is the original method kept for backward compatibility
      *
-     * @param receiverId Receiver party identifier (scheme::id)
+     * @param receiverId     Receiver party identifier (scheme::id)
      * @param documentTypeId Document type identifier
-     * @param processId Business process identifier
+     * @param processId      Business process identifier
      * @return The receiver endpoint URL
      * @throws Exception if endpoint resolution fails
      */
@@ -290,7 +293,7 @@ public class AS4SendService implements SendService {
      */
     public AS4SendResponse sendAS4Message(AS4SendRequest request) {
         AS4SendResponse.AS4SendResponseBuilder responseBuilder = AS4SendResponse.builder()
-            .timestamp(Instant.now().toEpochMilli());
+                .timestamp(Instant.now().toEpochMilli());
 
         // Wrap the entire operation in a synchronized block to manage scope properly
         // This ensures that Phase4's MetaAS4Manager can access the global scope
@@ -307,43 +310,43 @@ public class AS4SendService implements SendService {
             AS4SendResponse.AS4SendResponseBuilder responseBuilder) {
         try {
             logger.info("Preparing to send UBL 2.3 document via AS4 to DBNA network: {}",
-                request.getReceiverEndpointUrl());
+                    request.getReceiverEndpointUrl());
 
             // Validate request parameters
             if (request.getUblDocumentContent() == null || request.getUblDocumentContent().trim().isEmpty()) {
                 logger.warn("UBL document content is required");
                 return responseBuilder
-                    .success(false)
-                    .status(AS4SendStatus.VALIDATION_FAILED)
-                    .errorMessage("UBL document content is required")
-                    .build();
+                        .success(false)
+                        .status(AS4SendStatus.VALIDATION_FAILED)
+                        .errorMessage("UBL document content is required")
+                        .build();
             }
 
             if (!isValidEndpointUrl(request.getReceiverEndpointUrl())) {
                 logger.warn("Receiver endpoint URL is required");
                 return responseBuilder
-                    .success(false)
-                    .status(AS4SendStatus.VALIDATION_FAILED)
-                    .errorMessage("Receiver endpoint URL is required")
-                    .build();
+                        .success(false)
+                        .status(AS4SendStatus.VALIDATION_FAILED)
+                        .errorMessage("Receiver endpoint URL is required")
+                        .build();
             }
 
             if (!isValidString(request.getSenderId())) {
                 logger.warn("Sender ID is required");
                 return responseBuilder
-                    .success(false)
-                    .status(AS4SendStatus.VALIDATION_FAILED)
-                    .errorMessage("Sender ID is required")
-                    .build();
+                        .success(false)
+                        .status(AS4SendStatus.VALIDATION_FAILED)
+                        .errorMessage("Sender ID is required")
+                        .build();
             }
 
             if (!isValidString(request.getReceiverId())) {
                 logger.warn("Receiver ID is required");
                 return responseBuilder
-                    .success(false)
-                    .status(AS4SendStatus.VALIDATION_FAILED)
-                    .errorMessage("Receiver ID is required")
-                    .build();
+                        .success(false)
+                        .status(AS4SendStatus.VALIDATION_FAILED)
+                        .errorMessage("Receiver ID is required")
+                        .build();
             }
 
             // Validate UBL document
@@ -352,10 +355,10 @@ public class AS4SendService implements SendService {
             } catch (Exception e) {
                 logger.warn("Invalid UBL 2.3 document format: {}", e.getMessage());
                 return responseBuilder
-                    .success(false)
-                    .status(AS4SendStatus.VALIDATION_FAILED)
-                    .errorMessage("Invalid UBL 2.3 document format: " + e.getMessage())
-                    .build();
+                        .success(false)
+                        .status(AS4SendStatus.VALIDATION_FAILED)
+                        .errorMessage("Invalid UBL 2.3 document format: " + e.getMessage())
+                        .build();
             }
 
             // Inject receiver certificate into truststore if available
@@ -370,7 +373,7 @@ public class AS4SendService implements SendService {
             factory.setNamespaceAware(true);
             DocumentBuilder xmlBuilder = factory.newDocumentBuilder();
             Element ublElement = xmlBuilder.parse(
-                new StringInputStream(request.getUblDocumentContent(), StandardCharsets.UTF_8)
+                    new StringInputStream(request.getUblDocumentContent(), StandardCharsets.UTF_8)
             ).getDocumentElement();
 
             // Verify certificate configuration
@@ -384,7 +387,7 @@ public class AS4SendService implements SendService {
             // Prepare AS4 message parameters for DBNA network
             String messageId = MessageHelperMethods.createRandomMessageID();
             String conversationId = isValidString(request.getConversationId()) ?
-                request.getConversationId() : messageId;
+                    request.getConversationId() : messageId;
 
             // Use sender/receiver IDs from request or defaults
             String fromParty = isValidString(request.getSenderId()) ? request.getSenderId() : fromPartyId;
@@ -392,9 +395,9 @@ public class AS4SendService implements SendService {
 
             logger.info("Sending AS4 message to DBNA network with X.509 certificate authentication...");
             logger.debug("Message ID: {}, From: {}, To: {}, Endpoint: {}",
-                messageId, fromParty, toParty, request.getReceiverEndpointUrl());
+                    messageId, fromParty, toParty, request.getReceiverEndpointUrl());
             logger.debug("Using AS4 keystore: {}, key alias: {}",
-                as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
+                    as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
             try {
                 // Ensure global scope is active for Phase4 operations
                 // Phase4 requires the scope to be active in the current thread
@@ -406,317 +409,317 @@ public class AS4SendService implements SendService {
 
                 try {
                     // Build and send AS4 User Message for DBNA network using Phase4 builder
-                     // Ensure global scope is set before creating the builder
-                     // This is required by Phase4's MetaAS4Manager singleton
-                     var builder = ensureScopeAndCreateBuilder(
-                         messageId, conversationId, fromParty, toParty, request, as4CryptoFactory
-                     );
+                    // Ensure global scope is set before creating the builder
+                    // This is required by Phase4's MetaAS4Manager singleton
+                    var builder = ensureScopeAndCreateBuilder(
+                            messageId, conversationId, fromParty, toParty, request, as4CryptoFactory
+                    );
 
                     // Prepare payload content (either XHE-wrapped or standalone UBL)
-                     String payloadContent;
-                     if (!xheAvoid) {
-                         // XHE Envelope Mode (default) - wrap UBL document in XHE envelope
-                         logger.info("✓ Using XHE envelope mode (default) - wrapping UBL document in XHE per DBNA profile");
-                         try {
-                             // Extract CustomizationID and ProfileID from UBL document
-                             String customizationId = extractUBLElementValue(ublElement, "CustomizationID");
-                             String profileId = extractUBLElementValue(ublElement, "ProfileID");
+                    String payloadContent;
+                    if (!xheAvoid) {
+                        // XHE Envelope Mode (default) - wrap UBL document in XHE envelope
+                        logger.info("✓ Using XHE envelope mode (default) - wrapping UBL document in XHE per DBNA profile");
+                        try {
+                            // Extract CustomizationID and ProfileID from UBL document
+                            String customizationId = extractUBLElementValue(ublElement, "CustomizationID");
+                            String profileId = extractUBLElementValue(ublElement, "ProfileID");
 
-                             logger.debug("Extracted UBL metadata - CustomizationID: {}, ProfileID: {}", customizationId, profileId);
+                            logger.debug("Extracted UBL metadata - CustomizationID: {}, ProfileID: {}", customizationId, profileId);
 
-                             // Wrap UBL in XHE envelope
-                             payloadContent = xheEnvelopeService.wrapInXHEEnvelope(
-                                 request.getUblDocumentContent(),
-                                 fromParty,
-                                 toParty,
-                                 customizationId != null ? customizationId : "",
-                                 profileId != null ? profileId : "",
-                                 messageId
-                             );
-                             logger.info("UBL document successfully wrapped in XHE envelope");
-                         } catch (Exception xheEx) {
-                             logger.error("Failed to create XHE envelope, falling back to standalone UBL", xheEx);
-                             payloadContent = request.getUblDocumentContent();
-                         }
-                     } else {
-                         // Standalone Mode - send UBL document without XHE envelope
-                         logger.info("✓ Using standalone mode (XHE envelope DISABLED) - sending UBL document directly");
-                         payloadContent = request.getUblDocumentContent();
-                     }
+                            // Wrap UBL in XHE envelope
+                            payloadContent = xheEnvelopeService.wrapInXHEEnvelope(
+                                    request.getUblDocumentContent(),
+                                    fromParty,
+                                    toParty,
+                                    customizationId != null ? customizationId : "",
+                                    profileId != null ? profileId : "",
+                                    messageId
+                            );
+                            logger.info("UBL document successfully wrapped in XHE envelope");
+                        } catch (Exception xheEx) {
+                            logger.error("Failed to create XHE envelope, falling back to standalone UBL", xheEx);
+                            payloadContent = request.getUblDocumentContent();
+                        }
+                    } else {
+                        // Standalone Mode - send UBL document without XHE envelope
+                        logger.info("✓ Using standalone mode (XHE envelope DISABLED) - sending UBL document directly");
+                        payloadContent = request.getUblDocumentContent();
+                    }
 
-                     // Convert payload content to bytes
-                     byte[] payloadBytes;
-                     {
-                         java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                         javax.xml.transform.TransformerFactory.newInstance().newTransformer()
-                             .transform(new javax.xml.transform.stream.StreamSource(new StringInputStream(payloadContent, StandardCharsets.UTF_8)),
-                                       new javax.xml.transform.stream.StreamResult(baos));
-                         payloadBytes = baos.toByteArray();
-                     }
+                    // Convert payload content to bytes
+                    byte[] payloadBytes;
+                    {
+                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                        javax.xml.transform.TransformerFactory.newInstance().newTransformer()
+                                .transform(new javax.xml.transform.stream.StreamSource(new StringInputStream(payloadContent, StandardCharsets.UTF_8)),
+                                        new javax.xml.transform.stream.StreamResult(baos));
+                        payloadBytes = baos.toByteArray();
+                    }
 
-                     // Log document details
-                     int uncompressedSize = payloadBytes.length;
-                     logger.debug("=== PAYLOAD DETAILS ===");
-                     if (xheAvoid) {
-                         logger.debug("Payload content (first 200 chars):\n{}", payloadContent.length() > 200 ?
-                             payloadContent.substring(0, 200) + "..." : payloadContent);
-                     } else {
-                         logger.debug("XHE-wrapped payload preview (first 200 chars):\n{}", payloadContent.length() > 200 ?
-                             payloadContent.substring(0, 200) + "..." : payloadContent);
-                     }
-                     logger.debug("Uncompressed payload size: {} bytes", uncompressedSize);
-                     logger.debug("Envelope Mode: {}", xheAvoid ? "STANDALONE (UBL only)" : "XHE (with header)");
+                    // Log document details
+                    int uncompressedSize = payloadBytes.length;
+                    logger.debug("=== PAYLOAD DETAILS ===");
+                    if (xheAvoid) {
+                        logger.debug("Payload content (first 200 chars):\n{}", payloadContent.length() > 200 ?
+                                payloadContent.substring(0, 200) + "..." : payloadContent);
+                    } else {
+                        logger.debug("XHE-wrapped payload preview (first 200 chars):\n{}", payloadContent.length() > 200 ?
+                                payloadContent.substring(0, 200) + "..." : payloadContent);
+                    }
+                    logger.debug("Uncompressed payload size: {} bytes", uncompressedSize);
+                    logger.debug("Envelope Mode: {}", xheAvoid ? "STANDALONE (UBL only)" : "XHE (with header)");
 
-                     // Log XML structure preview
-                     String xmlPreview = extractXmlStructurePreview(payloadContent);
-                     logger.debug("Payload XML structure preview:\n{}", xmlPreview);
+                    // Log XML structure preview
+                    String xmlPreview = extractXmlStructurePreview(payloadContent);
+                    logger.debug("Payload XML structure preview:\n{}", xmlPreview);
 
-                     // Log builder configuration that will be used
-                     logger.debug("Builder configuration for payload:");
-                     logger.debug("  - Data size: {} bytes", payloadBytes.length);
-                     logger.debug("  - Compression: GZIP");
-                     logger.debug("  - MIME type: application/xml");
-                     logger.debug("  - Service: {}", request.getService());
-                     logger.debug("  - Action: {}", request.getAction());
-                     logger.debug("  - From Party: {}", fromParty);
-                     logger.debug("  - To Party: {}", toParty);
-                     logger.debug("  - Endpoint: {}", request.getReceiverEndpointUrl());
-                     logger.debug("  - PMode ID: {}", com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId());
-                     logger.debug("=== END PAYLOAD DETAILS ===");
+                    // Log builder configuration that will be used
+                    logger.debug("Builder configuration for payload:");
+                    logger.debug("  - Data size: {} bytes", payloadBytes.length);
+                    logger.debug("  - Compression: GZIP");
+                    logger.debug("  - MIME type: application/xml");
+                    logger.debug("  - Service: {}", request.getService());
+                    logger.debug("  - Action: {}", request.getAction());
+                    logger.debug("  - From Party: {}", fromParty);
+                    logger.debug("  - To Party: {}", toParty);
+                    logger.debug("  - Endpoint: {}", request.getReceiverEndpointUrl());
+                    logger.debug("  - PMode ID: {}", com.opuscapita.dbna.outbound.config.DBNAPModeConfiguration.getDBNAPModeId());
+                    logger.debug("=== END PAYLOAD DETAILS ===");
 
-                       // Add the payload as attachment
-                       // Key: Phase4 requires attachments to be "repeatable" for signing/encryption
-                       // We use a file-based data source to ensure the data is accessible throughout signing and encryption
-                       //
-                       // KNOWN ISSUE & WORKAROUND:
-                       // Phase4's BasicHttpPoster may not properly include the multipart message body in the HTTP POST request,
-                       // resulting in "Request body is required" (400) errors from the receiving endpoint.
-                       //
-                       // Root Cause: Phase4 converts the MIME message to a repeatable HTTP entity using a temporary file,
-                       // but the HTTP client may not properly read and stream the content to the HTTP request body.
-                       //
-                       // Workaround: We create the attachment using a File-based data source (not just byte array).
-                       // This ensures Phase4 can reopen/reread the data during signing, encryption, and HTTP transmission.
-                       // File-based approach is more reliable than byte arrays for large or complex messages.
-                       java.io.File tempAttachmentFile;
-                       try {
-                           // Create a temporary file to store the attachment data
-                           // This ensures Phase4 can read the data multiple times (for signing and encryption)
-                           tempAttachmentFile = java.io.File.createTempFile("as4-payload-", ".xml", new java.io.File(System.getProperty("java.io.tmpdir")));
-                           tempAttachmentFile.deleteOnExit();
+                    // Add the payload as attachment
+                    // Key: Phase4 requires attachments to be "repeatable" for signing/encryption
+                    // We use a file-based data source to ensure the data is accessible throughout signing and encryption
+                    //
+                    // KNOWN ISSUE & WORKAROUND:
+                    // Phase4's BasicHttpPoster may not properly include the multipart message body in the HTTP POST request,
+                    // resulting in "Request body is required" (400) errors from the receiving endpoint.
+                    //
+                    // Root Cause: Phase4 converts the MIME message to a repeatable HTTP entity using a temporary file,
+                    // but the HTTP client may not properly read and stream the content to the HTTP request body.
+                    //
+                    // Workaround: We create the attachment using a File-based data source (not just byte array).
+                    // This ensures Phase4 can reopen/reread the data during signing, encryption, and HTTP transmission.
+                    // File-based approach is more reliable than byte arrays for large or complex messages.
+                    java.io.File tempAttachmentFile;
+                    try {
+                        // Create a temporary file to store the attachment data
+                        // This ensures Phase4 can read the data multiple times (for signing and encryption)
+                        tempAttachmentFile = java.io.File.createTempFile("as4-payload-", ".xml", new java.io.File(System.getProperty("java.io.tmpdir")));
+                        tempAttachmentFile.deleteOnExit();
 
-                           // Write the payload bytes to the temporary file
-                           try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempAttachmentFile)) {
-                               fos.write(payloadBytes);
-                               fos.flush();
-                           }
+                        // Write the payload bytes to the temporary file
+                        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempAttachmentFile)) {
+                            fos.write(payloadBytes);
+                            fos.flush();
+                        }
 
-                           logger.debug("Created temporary attachment file: {}", tempAttachmentFile.getAbsolutePath());
+                        logger.debug("Created temporary attachment file: {}", tempAttachmentFile.getAbsolutePath());
 
-                            // Create the attachment using the file data source
-                            var payloadAttachment = AS4OutgoingAttachment.builder()
+                        // Create the attachment using the file data source
+                        var payloadAttachment = AS4OutgoingAttachment.builder()
                                 .data(tempAttachmentFile)
                                 .compressionGZIP()
                                 .mimeType(CMimeType.APPLICATION_XML)
                                 .build();
 
-                           logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
-                           logger.debug("Attachment object created: {} with data size: {}",
-                               payloadAttachment.getClass().getSimpleName(), payloadBytes.length);
-                           builder.addAttachment(payloadAttachment);
-                       } catch (Exception attachmentEx) {
-                           logger.error("Failed to create attachment with file data source, falling back to byte array", attachmentEx);
-                            // Fallback to byte array if file creation fails
-                            var payloadAttachment = AS4OutgoingAttachment.builder()
+                        logger.debug("Adding payload to AS4 builder with GZIP compression enabled");
+                        logger.debug("Attachment object created: {} with data size: {}",
+                                payloadAttachment.getClass().getSimpleName(), payloadBytes.length);
+                        builder.addAttachment(payloadAttachment);
+                    } catch (Exception attachmentEx) {
+                        logger.error("Failed to create attachment with file data source, falling back to byte array", attachmentEx);
+                        // Fallback to byte array if file creation fails
+                        var payloadAttachment = AS4OutgoingAttachment.builder()
                                 .data(payloadBytes)
                                 .compressionGZIP()
                                 .mimeType(CMimeType.APPLICATION_XML)
                                 .build();
-                           builder.addAttachment(payloadAttachment);
-                       }
+                        builder.addAttachment(payloadAttachment);
+                    }
 
                     // Send the message with X.509 certificate signing via AS4 keystore
-                     // Important: Phase4 may log warnings about missing PMode but still attempt to send
-                      logger.info("Initiating AS4 message send via Phase4");
-                      logger.debug("Builder configuration: service=urn:oasis:names:tc:ebxml-msg:service, " +
-                          "action=Send, from={}, to={}, endpoint={}",
-                          fromParty, toParty, request.getReceiverEndpointUrl());
-                      logger.debug("Payload: {} ({} bytes, GZIP compressed)",
-                          xheAvoid ? "Standalone UBL" : "XHE-wrapped document", payloadBytes.length);
+                    // Important: Phase4 may log warnings about missing PMode but still attempt to send
+                    logger.info("Initiating AS4 message send via Phase4");
+                    logger.debug("Builder configuration: service=urn:oasis:names:tc:ebxml-msg:service, " +
+                                    "action=Send, from={}, to={}, endpoint={}",
+                            fromParty, toParty, request.getReceiverEndpointUrl());
+                    logger.debug("Payload: {} ({} bytes, GZIP compressed)",
+                            xheAvoid ? "Standalone UBL" : "XHE-wrapped document", payloadBytes.length);
 
-                     // Call sendMessageAndCheckForReceipt and capture the result
-                      // This returns an enum indicating success or failure of the send operation
-                      // IMPORTANT: This is where Phase4 sends the multipart HTTP request via BasicHttpPoster
-                      // Known Issue: If the receiver gets "Request body is required" error (400), it means
-                      // Phase4 is not properly including the HTTP body in the POST request.
-                      // This can happen if the repeatable HTTP entity is not being read correctly.
-                      AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult sendResult;
-                      try {
-                          logger.debug("Calling Phase4 sendMessageAndCheckForReceipt()...");
-                          logger.debug("Phase4 will now:");
-                          logger.debug("  1. Sign the message with our certificate (keystore: {}, alias: {})",
-                              as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
-                          logger.debug("  2. Encrypt the message with receiver's certificate from SMP");
-                          logger.debug("  3. Create multipart/related MIME message");
-                          logger.debug("  4. Convert to repeatable HTTP entity (using temp file)");
-                          logger.debug("  5. Send HTTP POST to {}", request.getReceiverEndpointUrl());
+                    // Call sendMessageAndCheckForReceipt and capture the result
+                    // This returns an enum indicating success or failure of the send operation
+                    // IMPORTANT: This is where Phase4 sends the multipart HTTP request via BasicHttpPoster
+                    // Known Issue: If the receiver gets "Request body is required" error (400), it means
+                    // Phase4 is not properly including the HTTP body in the POST request.
+                    // This can happen if the repeatable HTTP entity is not being read correctly.
+                    AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult sendResult;
+                    try {
+                        logger.debug("Calling Phase4 sendMessageAndCheckForReceipt()...");
+                        logger.debug("Phase4 will now:");
+                        logger.debug("  1. Sign the message with our certificate (keystore: {}, alias: {})",
+                                as4Configuration.getKeystorePath(), as4Configuration.getKeyAlias());
+                        logger.debug("  2. Encrypt the message with receiver's certificate from SMP");
+                        logger.debug("  3. Create multipart/related MIME message");
+                        logger.debug("  4. Convert to repeatable HTTP entity (using temp file)");
+                        logger.debug("  5. Send HTTP POST to {}", request.getReceiverEndpointUrl());
 
-                          long startTime = System.currentTimeMillis();
-                          sendResult = builder.sendMessageAndCheckForReceipt();
-                          long duration = System.currentTimeMillis() - startTime;
+                        long startTime = System.currentTimeMillis();
+                        sendResult = builder.sendMessageAndCheckForReceipt();
+                        long duration = System.currentTimeMillis() - startTime;
 
-                          logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} after {} ms",
-                              sendResult, duration);
-                          logger.debug("HTTP transmission completed. Checking result status...");
-                      } catch (Exception e) {
-                           logger.error("Phase4 sendMessageAndCheckForReceipt() threw an exception", e);
+                        logger.debug("Phase4 sendMessageAndCheckForReceipt() returned: {} after {} ms",
+                                sendResult, duration);
+                        logger.debug("HTTP transmission completed. Checking result status...");
+                    } catch (Exception e) {
+                        logger.error("Phase4 sendMessageAndCheckForReceipt() threw an exception", e);
 
-                           // Check if this is a parsing error (e.g., JSON instead of SOAP)
-                           String exMsg = e.getMessage();
-                           Throwable cause = e.getCause();
+                        // Check if this is a parsing error (e.g., JSON instead of SOAP)
+                        String exMsg = e.getMessage();
+                        Throwable cause = e.getCause();
 
-                            // If the root cause is a SAXParseException, it likely means we received non-XML content or malformed XML
-                            if (cause instanceof org.xml.sax.SAXParseException saxEx) {
-                                String saxErrorMsg = saxEx.getMessage() != null ? saxEx.getMessage() : "";
+                        // If the root cause is a SAXParseException, it likely means we received non-XML content or malformed XML
+                        if (cause instanceof org.xml.sax.SAXParseException saxEx) {
+                            String saxErrorMsg = saxEx.getMessage() != null ? saxEx.getMessage() : "";
 
-                                // Handle empty or incomplete Receipt element (most common case with non-compliant endpoints)
-                                // Error: "cvc-complex-type.2.4.b: The content of element 'eb:Receipt' is not complete..."
-                                if (saxErrorMsg.contains("eb:Receipt") && saxErrorMsg.contains("not complete")) {
-                                    logger.warn("Received AS4 Receipt from endpoint with invalid/empty structure. " +
+                            // Handle empty or incomplete Receipt element (most common case with non-compliant endpoints)
+                            // Error: "cvc-complex-type.2.4.b: The content of element 'eb:Receipt' is not complete..."
+                            if (saxErrorMsg.contains("eb:Receipt") && saxErrorMsg.contains("not complete")) {
+                                logger.warn("Received AS4 Receipt from endpoint with invalid/empty structure. " +
                                         "The endpoint sent an empty or incomplete <eb:Receipt/> element which violates ebMS3 schema " +
                                         "(Receipt must contain at least one child element with content). " +
                                         "This indicates the remote endpoint has a non-compliant AS4 implementation. " +
                                         "Error details: {}", saxErrorMsg);
 
-                                    // The AS4 message was likely sent successfully (HTTP 200+), but the receipt is malformed
-                                    // We treat this as a partial success: message sent, but receipt validation failed
-                                    // This is a known issue with some non-compliant AS4 endpoints
-                                    return responseBuilder
+                                // The AS4 message was likely sent successfully (HTTP 200+), but the receipt is malformed
+                                // We treat this as a partial success: message sent, but receipt validation failed
+                                // This is a known issue with some non-compliant AS4 endpoints
+                                return responseBuilder
                                         .success(true)
                                         .messageId(messageId)
                                         .status(AS4SendStatus.SENT_RECEIPT_MALFORMED)
                                         .warningMessage("AS4 message sent successfully, but receiver's receipt was malformed (empty Receipt element). " +
-                                            "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
-                                            "The message delivery status is unknown.")
+                                                "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
+                                                "The message delivery status is unknown.")
                                         .build();
-                                }
+                            }
 
-                                // Handle malformed receipt with invalid ReceiptChild element (CVC schema validation errors)
-                                if (saxErrorMsg.contains("cvc-complex-type") && saxErrorMsg.contains("ReceiptChild")) {
-                                    logger.warn("Received malformed AS4 Receipt from endpoint with invalid structure. " +
+                            // Handle malformed receipt with invalid ReceiptChild element (CVC schema validation errors)
+                            if (saxErrorMsg.contains("cvc-complex-type") && saxErrorMsg.contains("ReceiptChild")) {
+                                logger.warn("Received malformed AS4 Receipt from endpoint with invalid structure. " +
                                         "The endpoint sent a Receipt containing 'ReceiptChild' element which violates ebMS3 schema. " +
                                         "This indicates the remote endpoint has a non-compliant AS4 implementation. " +
                                         "Error details: {}", saxErrorMsg);
 
-                                    // The AS4 message was likely sent successfully (HTTP 200+), but the receipt is malformed
-                                    // We treat this as a partial success: message sent, but receipt validation failed
-                                    // This is a known issue with some non-compliant AS4 endpoints
-                                    return responseBuilder
+                                // The AS4 message was likely sent successfully (HTTP 200+), but the receipt is malformed
+                                // We treat this as a partial success: message sent, but receipt validation failed
+                                // This is a known issue with some non-compliant AS4 endpoints
+                                return responseBuilder
                                         .success(true)
                                         .messageId(messageId)
                                         .status(AS4SendStatus.SENT_RECEIPT_MALFORMED)
                                         .warningMessage("AS4 message sent successfully, but receiver's receipt was malformed (invalid ReceiptChild element). " +
-                                            "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
-                                            "The message delivery status is unknown.")
+                                                "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
+                                                "The message delivery status is unknown.")
                                         .build();
-                                }
+                            }
 
-                                // Handle other schema validation errors in receipt
-                                if (saxErrorMsg.contains("cvc-") || saxErrorMsg.contains("xmldsig")) {
-                                    logger.warn("Received malformed AS4 Receipt from endpoint - schema validation error. " +
+                            // Handle other schema validation errors in receipt
+                            if (saxErrorMsg.contains("cvc-") || saxErrorMsg.contains("xmldsig")) {
+                                logger.warn("Received malformed AS4 Receipt from endpoint - schema validation error. " +
                                         "This indicates the remote endpoint may have sent an invalid or non-compliant receipt. " +
                                         "Error details: {}", saxErrorMsg);
 
-                                    return responseBuilder
+                                return responseBuilder
                                         .success(true)
                                         .messageId(messageId)
                                         .status(AS4SendStatus.SENT_RECEIPT_INVALID)
                                         .warningMessage("AS4 message sent successfully, but receiver's receipt failed schema validation. " +
-                                            "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
-                                            "The message delivery status is unknown.")
+                                                "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
+                                                "The message delivery status is unknown.")
                                         .build();
-                                }
+                            }
 
-                               // Handle general non-XML or invalid XML responses
-                               if (saxErrorMsg.contains("Content is not allowed in prolog")) {
-                                   logger.warn("Received non-XML response from endpoint (likely JSON or HTML error). " +
-                                       "This indicates the endpoint may not be a valid AS4 endpoint or returned an error. " +
-                                       "SAX Error: {}", saxErrorMsg);
+                            // Handle general non-XML or invalid XML responses
+                            if (saxErrorMsg.contains("Content is not allowed in prolog")) {
+                                logger.warn("Received non-XML response from endpoint (likely JSON or HTML error). " +
+                                        "This indicates the endpoint may not be a valid AS4 endpoint or returned an error. " +
+                                        "SAX Error: {}", saxErrorMsg);
 
-                                   // The message was likely sent successfully (HTTP 200+), but the response wasn't valid AS4
-                                   // This is a common issue when:
-                                   // 1. The endpoint returns JSON instead of SOAP
-                                   // 2. The endpoint returned an HTML error page
-                                   // 3. The endpoint is not a proper AS4 endpoint
-                                   // We treat this as a transmission error since we can't verify receipt
-                                   return responseBuilder
+                                // The message was likely sent successfully (HTTP 200+), but the response wasn't valid AS4
+                                // This is a common issue when:
+                                // 1. The endpoint returns JSON instead of SOAP
+                                // 2. The endpoint returned an HTML error page
+                                // 3. The endpoint is not a proper AS4 endpoint
+                                // We treat this as a transmission error since we can't verify receipt
+                                return responseBuilder
                                         .success(false)
                                         .status(AS4SendStatus.TRANSMISSION_ERROR)
                                         .errorMessage("AS4 message may have been sent, but receiver returned non-SOAP response. " +
-                                            "Endpoint may not support proper AS4 signal message receipts. " +
-                                            "This is common with REST/JSON endpoints instead of SOAP/AS4 endpoints.")
+                                                "Endpoint may not support proper AS4 signal message receipts. " +
+                                                "This is common with REST/JSON endpoints instead of SOAP/AS4 endpoints.")
                                         .build();
-                               }
-                           }
+                            }
+                        }
 
-                           // Check if the exception indicates a configuration issue
-                           if (exMsg != null && (exMsg.contains("mandatory field") || exMsg.contains("PMode"))) {
-                               logger.error("CRITICAL: AS4 message send failed due to missing fields or configuration issues: {}", exMsg);
-                               return responseBuilder
-                                   .success(false)
-                                   .status(AS4SendStatus.FAILED)
-                                   .errorMessage("AS4 send failed: " + exMsg)
-                                   .build();
-                           }
+                        // Check if the exception indicates a configuration issue
+                        if (exMsg != null && (exMsg.contains("mandatory field") || exMsg.contains("PMode"))) {
+                            logger.error("CRITICAL: AS4 message send failed due to missing fields or configuration issues: {}", exMsg);
+                            return responseBuilder
+                                    .success(false)
+                                    .status(AS4SendStatus.FAILED)
+                                    .errorMessage("AS4 send failed: " + exMsg)
+                                    .build();
+                        }
 
-                           // For other exceptions, re-throw to be caught by outer handler
-                           throw e;
-                      }
+                        // For other exceptions, re-throw to be caught by outer handler
+                        throw e;
+                    }
 
                     // Validate the send result
                     // The result is an enum - SUCCESS means the send succeeded, any other value means failure
                     if (sendResult == null) {
                         logger.error("CRITICAL: AS4 sendMessageAndCheckForReceipt() returned null. " +
-                            "This indicates the message was likely NOT sent.");
+                                "This indicates the message was likely NOT sent.");
                         return responseBuilder
-                            .success(false)
-                            .status(AS4SendStatus.FAILED)
-                            .errorMessage("AS4 send failed: sendMessageAndCheckForReceipt() returned null")
-                            .build();
+                                .success(false)
+                                .status(AS4SendStatus.FAILED)
+                                .errorMessage("AS4 send failed: sendMessageAndCheckForReceipt() returned null")
+                                .build();
                     }
 
                     // Check if the result indicates success
-                     // Use enum constant comparison instead of string matching for type safety
-                     logger.debug("AS4 send result: {}", sendResult);
-                      if (sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.SUCCESS) {
-                          logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
-                          return responseBuilder
-                              .success(true)
-                              .messageId(messageId)
-                              .status(AS4SendStatus.SENT)
-                              .build();
-                     } else {
-                         // Send failed - result indicates an error condition
-                         logger.error("CRITICAL: AS4 sendMessageAndCheckForReceipt() returned failure status: {}", sendResult);
+                    // Use enum constant comparison instead of string matching for type safety
+                    logger.debug("AS4 send result: {}", sendResult);
+                    if (sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.SUCCESS) {
+                        logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
+                        return responseBuilder
+                                .success(true)
+                                .messageId(messageId)
+                                .status(AS4SendStatus.SENT)
+                                .build();
+                    } else {
+                        // Send failed - result indicates an error condition
+                        logger.error("CRITICAL: AS4 sendMessageAndCheckForReceipt() returned failure status: {}", sendResult);
 
-                         // Provide more specific error messages for known failure cases
-                         String errorMsg;
-                         if (sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.TRANSPORT_ERROR) {
-                             // TRANSPORT_ERROR often indicates response parsing issues (e.g., JSON instead of SOAP)
-                             errorMsg = "AS4 message transmission failed: The receiving endpoint returned a non-SOAP response. " +
-                                 "This typically indicates: (1) the endpoint is not a proper AS4 endpoint, " +
-                                 "(2) the endpoint returned an error response in JSON/HTML format instead of SOAP, " +
-                                 "or (3) there was a network/SSL issue. Check the endpoint URL and ensure it supports AS4.";
-                         } else {
-                             errorMsg = String.format("AS4 send failed with status: %s", sendResult);
-                         }
+                        // Provide more specific error messages for known failure cases
+                        String errorMsg;
+                        if (sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.TRANSPORT_ERROR) {
+                            // TRANSPORT_ERROR often indicates response parsing issues (e.g., JSON instead of SOAP)
+                            errorMsg = "AS4 message transmission failed: The receiving endpoint returned a non-SOAP response. " +
+                                    "This typically indicates: (1) the endpoint is not a proper AS4 endpoint, " +
+                                    "(2) the endpoint returned an error response in JSON/HTML format instead of SOAP, " +
+                                    "or (3) there was a network/SSL issue. Check the endpoint URL and ensure it supports AS4.";
+                        } else {
+                            errorMsg = String.format("AS4 send failed with status: %s", sendResult);
+                        }
 
-                         return responseBuilder
-                             .success(false)
-                             .status(sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.TRANSPORT_ERROR ? AS4SendStatus.TRANSMISSION_ERROR : AS4SendStatus.FAILED)
-                             .errorMessage(errorMsg)
-                             .build();
-                     }
+                        return responseBuilder
+                                .success(false)
+                                .status(sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.TRANSPORT_ERROR ? AS4SendStatus.TRANSMISSION_ERROR : AS4SendStatus.FAILED)
+                                .errorMessage(errorMsg)
+                                .build();
+                    }
                 } finally {
                     // Only end scope if we created it
                     if (!scopeWasAlreadyActive) {
@@ -730,8 +733,8 @@ public class AS4SendService implements SendService {
 
             } catch (Exception sendEx) {
                 logger.error("Failed to send AS4 message to DBNA network. " +
-                    "This may be due to configuration issues (missing PMode, no profile module, certificate issues, or incomplete AS4 builder configuration).",
-                    sendEx);
+                                "This may be due to configuration issues (missing PMode, no profile module, certificate issues, or incomplete AS4 builder configuration).",
+                        sendEx);
 
                 String errorMsg = sendEx.getMessage();
                 if (errorMsg != null) {
@@ -745,18 +748,18 @@ public class AS4SendService implements SendService {
                 }
 
                 return responseBuilder
-                    .success(false)
-                    .status(AS4SendStatus.FAILED)
-                    .errorMessage("Failed to send message: " + errorMsg)
-                    .build();
+                        .success(false)
+                        .status(AS4SendStatus.FAILED)
+                        .errorMessage("Failed to send message: " + errorMsg)
+                        .build();
             }
         } catch (Exception e) {
             logger.error("Error preparing AS4 message for DBNA network", e);
             return responseBuilder
-                .success(false)
-                .status(AS4SendStatus.ERROR)
-                .errorMessage(e.getMessage())
-                .build();
+                    .success(false)
+                    .status(AS4SendStatus.ERROR)
+                    .errorMessage(e.getMessage())
+                    .build();
         }
     }
 
@@ -784,37 +787,37 @@ public class AS4SendService implements SendService {
             String messageId, String conversationId, String fromParty, String toParty,
             AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
 
-         // First, try to create the builder normally
-         try {
-             return createAS4Builder(messageId, conversationId, fromParty, toParty, request, as4CryptoFactory);
-         } catch (IllegalStateException e) {
-             // If we get a scope error, that's expected - Phase4 will need scope initialization
-             // But at this point, we're in a synchronized block so future requests should work
-             if (e.getMessage() != null && e.getMessage().contains("No global scope object has been set")) {
-                 logger.error("Phase4 requires a global scope but none is available. " +
-                     "This may be a Phase4 configuration issue. The error will propagate.", e);
-             }
-             throw e;
-         }
-     }
+        // First, try to create the builder normally
+        try {
+            return createAS4Builder(messageId, conversationId, fromParty, toParty, request, as4CryptoFactory);
+        } catch (IllegalStateException e) {
+            // If we get a scope error, that's expected - Phase4 will need scope initialization
+            // But at this point, we're in a synchronized block so future requests should work
+            if (e.getMessage() != null && e.getMessage().contains("No global scope object has been set")) {
+                logger.error("Phase4 requires a global scope but none is available. " +
+                        "This may be a Phase4 configuration issue. The error will propagate.", e);
+            }
+            throw e;
+        }
+    }
 
-       /**
-        * Create the AS4 builder with all the required parameters from the request.
-        * <p>
-        * The .pmodeID("bdxr-as4-1.0") references the DBNA PMode that is automatically
-        * registered by Phase4 when phase4-profile-dbnalliance is on the classpath.
-        */
-        private AS4Sender.BuilderUserMessage createAS4Builder(
-                String messageId, String conversationId, String fromParty, String toParty,
-                AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
+    /**
+     * Create the AS4 builder with all the required parameters from the request.
+     * <p>
+     * The .pmodeID("bdxr-as4-1.0") references the DBNA PMode that is automatically
+     * registered by Phase4 when phase4-profile-dbnalliance is on the classpath.
+     */
+    private AS4Sender.BuilderUserMessage createAS4Builder(
+            String messageId, String conversationId, String fromParty, String toParty,
+            AS4SendRequest request, IAS4CryptoFactory as4CryptoFactory) {
 
-            // Log encryption request for debugging
-            logger.info("AS4Builder: encryptMessage={}, hasCertificate={}",
+        // Log encryption request for debugging
+        logger.info("AS4Builder: encryptMessage={}, hasCertificate={}",
                 request.isEncryptMessage(), request.getReceiverCertificate() != null);
 
-            // Build the base builder with all required AS4 parameters
-            // Phase4's BuilderUserMessage requires several mandatory fields to create a valid AS4 message
-            var builder = new AS4Sender.BuilderUserMessage()
+        // Build the base builder with all required AS4 parameters
+        // Phase4's BuilderUserMessage requires several mandatory fields to create a valid AS4 message
+        var builder = new AS4Sender.BuilderUserMessage()
                 .cryptoFactory(as4CryptoFactory)
                 // Signing-specific crypto factory - CRITICAL: Required for message signing
                 // Phase4 uses cryptoFactorySign specifically for signing operations
@@ -846,36 +849,36 @@ public class AS4SendService implements SendService {
                 // Endpoint URL - Required (where to send the message)
                 .endpointURL(request.getReceiverEndpointUrl());
 
-             // Configure encryption if requested and receiver certificate is available
-             // Per DBNA spec: We encrypt with the receiver's certificate from SMP (AES-256-GCM)
-             // NOTE: The DBNA PMode (bdxr-as4-1.0) specifies AES-256-GCM encryption
-             // Phase4 will use this PMode to determine encryption is needed
-             // The receiver certificate must be provided explicitly for Phase4's encryption to work
-             if (request.isEncryptMessage()) {
-                 if (request.getReceiverCertificate() != null) {
-                     logger.debug("Encryption requested: receiver certificate is available from SMP");
-                     logger.debug("Providing receiver certificate to Phase4 builder for encryption");
-                     // CRITICAL: Provide the receiver certificate to Phase4 for encryption
-                     // This tells Phase4's encryption engine (WSS4J) which certificate to use for encrypting the message
-                     builder.receiverCertificate(request.getReceiverCertificate());
-                     logger.debug("Phase4 will encrypt the message using AES-256-GCM (from PMode) with receiver's certificate");
-                 } else {
-                     logger.warn("Encryption requested but no receiver certificate available from SMP. " +
-                         "Encryption will fail - the message cannot be encrypted without the receiver's certificate.");
-                 }
-             }
-
-            // Configure signing if requested
-            // We use the keystore certificate for signing (our certificate)
-            if (request.isSignMessage()) {
-                logger.info("✓ Configuring AS4 message signing");
-                // Phase4 will use the crypto factory to sign with the key alias configured in the AS4Configuration
-                // The key alias is set in as4CryptoFactory which was passed as cryptoFactorySign
-                // Nothing additional needs to be configured here as the crypto factory handles it
+        // Configure encryption if requested and receiver certificate is available
+        // Per DBNA spec: We encrypt with the receiver's certificate from SMP (AES-256-GCM)
+        // NOTE: The DBNA PMode (bdxr-as4-1.0) specifies AES-256-GCM encryption
+        // Phase4 will use this PMode to determine encryption is needed
+        // The receiver certificate must be provided explicitly for Phase4's encryption to work
+        if (request.isEncryptMessage()) {
+            if (request.getReceiverCertificate() != null) {
+                logger.debug("Encryption requested: receiver certificate is available from SMP");
+                logger.debug("Providing receiver certificate to Phase4 builder for encryption");
+                // CRITICAL: Provide the receiver certificate to Phase4 for encryption
+                // This tells Phase4's encryption engine (WSS4J) which certificate to use for encrypting the message
+                builder.receiverCertificate(request.getReceiverCertificate());
+                logger.debug("Phase4 will encrypt the message using AES-256-GCM (from PMode) with receiver's certificate");
+            } else {
+                logger.warn("Encryption requested but no receiver certificate available from SMP. " +
+                        "Encryption will fail - the message cannot be encrypted without the receiver's certificate.");
             }
-
-            return builder;
         }
+
+        // Configure signing if requested
+        // We use the keystore certificate for signing (our certificate)
+        if (request.isSignMessage()) {
+            logger.info("✓ Configuring AS4 message signing");
+            // Phase4 will use the crypto factory to sign with the key alias configured in the AS4Configuration
+            // The key alias is set in as4CryptoFactory which was passed as cryptoFactorySign
+            // Nothing additional needs to be configured here as the crypto factory handles it
+        }
+
+        return builder;
+    }
 
     /**
      * Extracts the scheme/type prefix from an identifier that uses the pattern: scheme::value
@@ -896,7 +899,7 @@ public class AS4SendService implements SendService {
             logger.warn("Process identifier is null or empty, service type will not be set");
             return null;
         }
-        
+
         // Extract the scheme part before the first ::
         int separatorIndex = identifier.indexOf("::");
         if (separatorIndex > 0) {
@@ -928,7 +931,7 @@ public class AS4SendService implements SendService {
      * This searches for elements matching the local name without namespace
      * (handles UBL 2.3 namespace)
      *
-     * @param element Root element to search from
+     * @param element   Root element to search from
      * @param localName Local name of the element to find
      * @return Element text content, or null if not found
      */
@@ -966,7 +969,7 @@ public class AS4SendService implements SendService {
             factory.setNamespaceAware(true);
             DocumentBuilder builder = factory.newDocumentBuilder();
             org.w3c.dom.Document doc = builder.parse(
-                new StringInputStream(xmlContent, StandardCharsets.UTF_8)
+                    new StringInputStream(xmlContent, StandardCharsets.UTF_8)
             );
             org.w3c.dom.Element root = doc.getDocumentElement();
 
