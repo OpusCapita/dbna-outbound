@@ -42,13 +42,15 @@ public class SMPService {
     private static final long CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     private final HttpClient httpClient;
-    
+    private final CertificateValidationService certificateValidationService;
+
     // Cache for ServiceGroup and ServiceMetadata resources
     private final ConcurrentHashMap<String, CachedSMPResource> resourceCache = new ConcurrentHashMap<>();
     
     @Autowired
-    public SMPService(HttpClient httpClient) {
+    public SMPService(HttpClient httpClient, CertificateValidationService certificateValidationService) {
         this.httpClient = httpClient;
+        this.certificateValidationService = certificateValidationService;
     }
     
     /**
@@ -293,7 +295,45 @@ public class SMPService {
     }
     
      /**
+      * Validates an X.509 certificate queried from SMP before using it for encryption/validation
+      * <p>
+      * Performs comprehensive validation including:
+      * - Certificate expiration checks
+      * - Subject DN validation
+      * - Issuer DN validation
+      * - Extended key usage validation
+      *
+      * @param certificate The X509Certificate to validate
+      * @return true if certificate is valid for DBNA usage, false otherwise
+      */
+     private boolean validateReceiverCertificate(X509Certificate certificate) {
+         if (certificate == null) {
+             logger.debug("Certificate is null, skipping validation");
+             return false;
+         }
+
+         try {
+             CertificateValidationService.CertificateValidationResult validationResult =
+                 certificateValidationService.validateForDBNA(certificate);
+
+             if (validationResult.valid) {
+                 logger.info("✓ Certificate validation passed for subject: {}",
+                     certificate.getSubjectX500Principal());
+                 return true;
+             } else {
+                 logger.warn("✗ Certificate validation failed for subject: {}. Details: {}",
+                     certificate.getSubjectX500Principal(), validationResult);
+                 return false;
+             }
+         } catch (Exception e) {
+             logger.error("Error validating receiver certificate from SMP: {}", e.getMessage(), e);
+             return false;
+         }
+     }
+
+     /**
       * Extracts the receiver's X.509 certificate from SMP ServiceMetadata XML response
+      * and validates it before returning
       * According to DBNA SMP Profile v1.0, the Certificate element within Endpoint contains the receiver's certificate
       * which is used by us (the sender) for:
       * 1. Validating the receiver's endpoint legitimacy
@@ -314,7 +354,7 @@ public class SMPService {
       * </sma:Endpoint>
       *
       * @param xml The ServiceMetadata XML response
-      * @return The X509Certificate if found, null otherwise
+      * @return The X509Certificate if found and valid, null otherwise
       */
      private X509Certificate extractCertificateFromXML(String xml) {
          if (xml == null) return null;
@@ -355,7 +395,16 @@ public class SMPService {
                                  );
                                  logger.info("Successfully extracted X.509 certificate from SMP Endpoint: Subject={}, Issuer={}",
                                      cert.getSubjectX500Principal(), cert.getIssuerX500Principal());
-                                 return cert;
+
+                                 // Validate the certificate after extraction
+                                 if (validateReceiverCertificate(cert)) {
+                                     logger.info("✓ Receiver certificate from SMP has been validated successfully");
+                                     return cert;
+                                 } else {
+                                     logger.error("✗ Receiver certificate from SMP failed validation and will NOT be added to truststore. " +
+                                         "AS4 message transmission may fail for signature verification.");
+                                     return null;
+                                 }
                              } catch (Exception e) {
                                  logger.warn("Failed to parse X509Certificate from SMP Endpoint: {}", e.getMessage());
                                  return null;

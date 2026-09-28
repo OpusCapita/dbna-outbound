@@ -266,10 +266,10 @@ public class AS4SendService implements SendService {
 
         // Inject receiver certificate into truststore if available
         if (finalServiceInfo.hasCertificateInfo()) {
-            logger.info("✓ Injecting receiver certificate into truststore for PKIX validation");
+            logger.info("✓ Injecting validated receiver certificate into truststore for response validation and PKIX validation");
             truststoreManager.addReceiverCertificate(finalServiceInfo.getReceiverCertificate());
         } else {
-            logger.warn("⚠ No receiver certificate found in SMP response. AS4 transmission may fail for PKIX validation.");
+            logger.warn("⚠ No receiver certificate found in SMP response (or certificate validation failed). AS4 transmission may fail for PKIX validation.");
         }
 
         return finalServiceInfo;

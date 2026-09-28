@@ -21,11 +21,14 @@ class SMPServiceTest {
     @Mock
     private HttpClient httpClient;
 
+    @Mock
+    private CertificateValidationService certificateValidationService;
+
     private SMPService smpService;
 
     @BeforeEach
     void setUp() {
-        smpService = new SMPService(httpClient);
+        smpService = new SMPService(httpClient, certificateValidationService);
     }
 
     // === Constructor Tests ===
