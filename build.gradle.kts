@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.opuscapita.dbna.outbound"
-version = "1.2.2"
+version = "1.2.3"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -30,6 +30,13 @@ repositories {
 }
 
 extra["springCloudVersion"] = "2024.0.0"
+
+// Legacy BouncyCastle artifacts (pulled in transitively by oxalis/commons-certvalidator) share package
+// names with the jdk18on artifacts and cause NoSuchMethodError at runtime - exclude them everywhere.
+configurations.all {
+    exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcpkix-jdk15on")
+}
 
 dependencies {
     // Spring Boot
@@ -71,9 +78,9 @@ dependencies {
     // Apache Commons IO for file utilities
     implementation("commons-io:commons-io:2.15.1")
     
-    // BouncyCastle for X.509 certificate generation (testing/dummy certificates)
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.79")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.79")
+    // BouncyCastle (X.509/ASN.1 handling) - version aligned with Phase4 (requires bcpkix [1.80,1.81))
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.80.2")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.80.2")
 
     // Apache HttpClient 5 - explicitly declared for SSL/TLS support
     implementation("org.apache.httpcomponents.client5:httpclient5")

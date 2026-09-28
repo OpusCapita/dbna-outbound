@@ -96,35 +96,23 @@ public class AS4Configuration {
 
             // Validate keystore contents for troubleshooting
             validateKeystoreContents(resolvedKeystorePath, detectedType);
+
+            // Use an in-memory crypto factory backed by the LIVE truststore instance of TruststoreManager.
+            // WSS4J's Merlin keeps a reference to the KeyStore object, so certificates injected at runtime
+            // (receiver certs from SMP + issuer certs fetched via AIA) are immediately visible when
+            // verifying the signature of the receiver's response (Receipt/Error signal).
+            KeyStore keyStore = loadKeyStoreFromResource(resolvedKeystorePath, keystorePassword, detectedType);
+            KeyStore trustStore = truststoreManager.getTruststore();
+            if (keyStore != null && trustStore != null) {
+                logger.info("✓ AS4 crypto factory uses live in-memory truststore for signature verification");
+                return new AS4CryptoFactoryInMemoryKeyStore(keyStore, keyAlias, keyPassword, trustStore);
+            }
+            logger.warn("Could not create in-memory crypto factory (keystore loaded: {}, truststore available: {}), " +
+                "falling back to properties-based crypto factory", keyStore != null, trustStore != null);
         } else {
             logger.warn("Keystore file not found at: {}. AS4 signing will not be available.", keystorePath);
         }
 
-        // Configure truststore for validating incoming signatures (critical for response validation!)
-        try {
-            logger.info("Configuring truststore for AS4 signature validation");
-            KeyStore trustStore = truststoreManager.getTruststore();
-            if (trustStore != null) {
-                // WSS4J/Merlin needs a temporary truststore file to work with
-                // We'll save the in-memory truststore to a temporary file
-                File tempTrustFile = File.createTempFile("phase4-truststore", ".jks");
-                tempTrustFile.deleteOnExit();
-
-                // Write truststore to temp file
-                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempTrustFile)) {
-                    trustStore.store(fos, truststorePassword.toCharArray());
-                }
-
-                cryptoProps.setTrustStorePath(tempTrustFile.getAbsolutePath());
-                cryptoProps.setTrustStorePassword(truststorePassword);
-                cryptoProps.setTrustStoreType(EKeyStoreType.JKS);
-                logger.info("✓ Truststore configured for AS4 signature validation (path: {})", tempTrustFile.getAbsolutePath());
-            } else {
-                logger.warn("⚠ Truststore is null/unavailable - signature validation may fail");
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to configure truststore for AS4 crypto factory: {}. Signature validation may fail.", e.getMessage());
-        }
 
         return new AS4CryptoFactoryProperties(cryptoProps);
     }
