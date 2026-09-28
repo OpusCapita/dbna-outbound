@@ -55,6 +55,8 @@ logging:
     com.helger.commons: INFO
     org.springframework.web: DEBUG
     org.apache.http: DEBUG
+    org.apache.hc.client5.http: DEBUG  # Apache HttpClient 5.x used by Phase4 (for HTTP response debugging)
+    org.apache.hc.client5.http.wire: TRACE  # Raw HTTP request/response bodies
 
 # Development-specific settings
 management:

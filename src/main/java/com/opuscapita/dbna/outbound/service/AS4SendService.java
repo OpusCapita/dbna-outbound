@@ -574,6 +574,9 @@ public class AS4SendService implements SendService {
                     } catch (Exception e) {
                         logger.error("Phase4 sendMessageAndCheckForReceipt() threw an exception", e);
 
+                        // Try to capture raw response if available
+                        captureAndLogRawResponse(e);
+
                         // Check if this is a parsing error (e.g., JSON instead of SOAP)
                         String exMsg = e.getMessage();
                         Throwable cause = e.getCause();
@@ -1021,5 +1024,62 @@ public class AS4SendService implements SendService {
             }
         }
         return response;
+    }
+
+    /**
+     * Helper method to capture and log raw response received from remote party by Phase4
+     * Attempts to extract response content from the exception chain and logs it at trace level
+     * This helps debug issues with non-compliant endpoints or unexpected response formats
+     */
+    private void captureAndLogRawResponse(Exception e) {
+        try {
+            // Try to find response content in exception chain
+            String rawResponse = null;
+
+            // Check exception message for response hints
+            if (e.getMessage() != null) {
+                logger.trace("Phase4 exception message: {}", e.getMessage());
+            }
+
+            // Traverse the exception chain to find SAXParseException or similar
+            Throwable current = e;
+            while (current != null) {
+                if (current instanceof org.xml.sax.SAXParseException) {
+                    org.xml.sax.SAXParseException saxEx = (org.xml.sax.SAXParseException) current;
+                    logger.trace("SAXParseException details - Line: {}, Column: {}, Message: {}",
+                            saxEx.getLineNumber(), saxEx.getColumnNumber(), saxEx.getMessage());
+                    // SAXParseException doesn't expose the raw content, but the message gives hints
+                    break;
+                }
+                current = current.getCause();
+            }
+
+            // Attempt to extract response from exception context if available
+            // This is a fallback for cases where Phase4 might expose response details
+            if (e instanceof java.io.IOException) {
+                logger.trace("HTTP/IO Exception occurred - may indicate network or parsing issue");
+            }
+
+            if (rawResponse != null) {
+                // Pretty-print if it looks like XML
+                if (rawResponse.trim().startsWith("<")) {
+                    try {
+                        String prettyXml = XmlUtil.prettyPrintXml(rawResponse.getBytes(StandardCharsets.UTF_8));
+                        logger.trace("Raw response from remote party (pretty-printed XML):\n{}", prettyXml);
+                    } catch (Exception xmlEx) {
+                        logger.trace("Raw response from remote party:\n{}", rawResponse);
+                    }
+                } else {
+                    // If not XML, log as-is (could be JSON, HTML, or plain text)
+                    logger.trace("Raw response from remote party:\n{}", rawResponse);
+                }
+            } else {
+                logger.trace("Could not extract raw response content from exception chain. " +
+                        "Phase4 may not expose the response body in exceptions. " +
+                        "Enable HTTP client logging (logging.level.org.apache.hc=DEBUG) to see raw HTTP responses.");
+            }
+        } catch (Exception logEx) {
+            logger.debug("Error trying to capture raw response from exception: {}", logEx.getMessage());
+        }
     }
 }

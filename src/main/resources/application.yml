@@ -90,12 +90,17 @@ logging:
     root: INFO
     com.opuscapita.dbna: DEBUG
     com.opuscapita.dbna.outbound.controller.HealthController: WARN
+    com.opuscapita.dbna.outbound.service.AS4SendService: TRACE
+    com.opuscapita.dbna.outbound.service.XHEEnvelopeService: TRACE
+    com.opuscapita.dbna.outbound.controller.AS4SendController: TRACE
     com.helger.phase4: DEBUG
     org.springframework.web: DEBUG
     org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor: DEBUG
     org.apache.http: DEBUG
     org.apache.http.wire: DEBUG
     org.apache.http.headers: DEBUG
+    org.apache.hc.client5.http: DEBUG  # Apache HttpClient 5.x used by Phase4 (for HTTP response debugging)
+    org.apache.hc.client5.http.wire: TRACE  # Raw HTTP request/response bodies
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} %logger{36} - %level: %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %logger{36} - %level: %msg%n"
