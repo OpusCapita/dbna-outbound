@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
 import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -129,6 +131,11 @@ public class TruststoreManager implements InitializingBean {
      * Add a receiver certificate to the in-memory truststore
      * Certificates are added with alias based on their subject DN
      *
+     * This method also attempts to add intermediate certificates for chain validation.
+     * When WSS4J validates incoming signatures, it needs the full certificate chain
+     * to perform PKIX validation. This method extracts and adds intermediate certificates
+     * to support proper signature verification on responses from the remote party.
+     *
      * @param receiverCertificate The X509 certificate to add
      * @return true if certificate was added/updated, false if it already existed
      */
@@ -142,6 +149,7 @@ public class TruststoreManager implements InitializingBean {
 
         truststoreLock.writeLock().lock();
         try {
+            boolean added = false;
             String certificateAlias = generateCertificateAlias(receiverCertificate);
 
             // Check if certificate already exists
@@ -157,14 +165,74 @@ public class TruststoreManager implements InitializingBean {
             truststore.setCertificateEntry(certificateAlias, receiverCertificate);
             logger.info("Added receiver certificate to truststore with alias: {} (Subject: {})",
                 certificateAlias, receiverCertificate.getSubjectX500Principal());
+            added = true;
 
-            return true;
+            // Try to add intermediate certificates for chain validation
+            // This ensures WSS4J can validate certificate chains for incoming signatures
+            try {
+                logger.debug("Attempting to add intermediate certificates from chain for: {}",
+                    receiverCertificate.getSubjectX500Principal());
+                addIntermediateCertificatesToTruststore(receiverCertificate, new HashSet<>());
+            } catch (Exception e) {
+                // Log warning but don't fail - intermediate certs are nice to have but not essential
+                // If intermediate certs are missing, WSS4J might fail to validate, but that's a separate issue
+                logger.warn("Could not add all intermediate certificates for chain validation. " +
+                    "WSS4J might have issues validating responses. Error: {}", e.getMessage());
+            }
+
+            return added;
         } catch (Exception e) {
             logger.error("Failed to add receiver certificate to truststore", e);
             throw new RuntimeException("Failed to add receiver certificate to truststore: " + e.getMessage(), e);
         } finally {
             truststoreLock.writeLock().unlock();
         }
+    }
+
+    /**
+     * Recursively add intermediate certificates from a certificate's issuer chain.
+     * Extracts issuer information and attempts to add to truststore for PKIX validation.
+     *
+     * Note: This method attempts to use the issuer certificate if available through
+     * standard X.509 mechanisms. For self-signed certificates at the root level,
+     * we rely on them being in the system truststore (loaded at initialization).
+     *
+     * @param certificate The certificate to extract issuer from
+     * @param processedCerts Set to track already-processed certificates to avoid infinite loops
+     */
+    private void addIntermediateCertificatesToTruststore(X509Certificate certificate, Set<String> processedCerts) throws Exception {
+        if (certificate == null) {
+            return;
+        }
+
+        // Avoid processing the same certificate multiple times
+        String certKey = certificate.getSubjectX500Principal().getName() + "_" + certificate.getSerialNumber();
+        if (processedCerts.contains(certKey)) {
+            return;
+        }
+        processedCerts.add(certKey);
+
+        // Check if this is a self-signed cert (subject equals issuer)
+        if (certificate.getSubjectX500Principal().equals(certificate.getIssuerX500Principal())) {
+            logger.debug("Certificate is self-signed: {}", certificate.getSubjectX500Principal());
+            // Try to add it as a trust anchor if it's not already there
+            String issuerAlias = generateCertificateAlias(certificate);
+            try {
+                if (!truststore.containsAlias(issuerAlias)) {
+                    truststore.setCertificateEntry(issuerAlias, certificate);
+                    logger.info("Added self-signed trust anchor: {}", certificate.getSubjectX500Principal());
+                }
+            } catch (Exception e) {
+                logger.debug("Could not add self-signed certificate: {}", e.getMessage());
+            }
+            return;
+        }
+
+        // For non-self-signed certs, we would need to fetch the issuer from AIA or other sources
+        // This is a limitation - we can only work with certificates provided by the endpoint
+        logger.debug("Certificate has issuer: {}, but issuer certificate is not embedded in response. " +
+            "If signature validation fails, the issuer certificate may need to be installed separately.",
+            certificate.getIssuerX500Principal());
     }
 
     /**

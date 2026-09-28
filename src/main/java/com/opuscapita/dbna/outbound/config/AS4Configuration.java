@@ -140,8 +140,32 @@ public class AS4Configuration {
             
             // Load trust material from truststore or use system default
             if (trustStore != null) {
-                sslContextBuilder.loadTrustMaterial(trustStore, null);
-                logger.info("✓ SSL configured with truststore for certificate validation");
+                // Use lenient trust manager for better compatibility with AS4 certificate validation
+                // This allows accepting certificates directly from truststore even if full chain can't be built
+                javax.net.ssl.TrustManagerFactory tmf = javax.net.ssl.TrustManagerFactory.getInstance(
+                    javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(trustStore);
+
+                javax.net.ssl.X509TrustManager standardTrustManager = null;
+                javax.net.ssl.TrustManager[] trustManagers = tmf.getTrustManagers();
+                if (trustManagers != null && trustManagers.length > 0 && trustManagers[0] instanceof javax.net.ssl.X509TrustManager) {
+                    standardTrustManager = (javax.net.ssl.X509TrustManager) trustManagers[0];
+                }
+
+                // Create lenient wrapper
+                javax.net.ssl.X509TrustManager lenientTrustManager =
+                    new LenientX509TrustManager(standardTrustManager, trustStore);
+
+                sslContextBuilder.loadTrustMaterial(trustStore, (chain, authType) -> {
+                    try {
+                        lenientTrustManager.checkServerTrusted(chain, authType);
+                        return true;
+                    } catch (Exception e) {
+                        logger.warn("Certificate validation failed: {}", e.getMessage());
+                        return false;
+                    }
+                });
+                logger.info("✓ SSL configured with truststore for certificate validation (lenient mode)");
             } else {
                 // No truststore available - use permissive trust for development
                 logger.warn("⚠ Truststore is null/unavailable - configuring permissive SSL as fallback");
@@ -526,12 +550,26 @@ public class AS4Configuration {
                 }
                 
                 // Create SSL context with the managed truststore
+                // Use lenient trust manager to accept certificates if they're in the truststore,
+                // even if the full certificate chain can't be built (e.g., intermediate CAs not available)
                 javax.net.ssl.TrustManagerFactory tmf = javax.net.ssl.TrustManagerFactory.getInstance(
                     javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
                 tmf.init(trustStore);
                 
-                sslContext.init(null, tmf.getTrustManagers(), new java.security.SecureRandom());
-                logger.info("✓ Phase4 SSL context configured with managed truststore (receiver certificates will be injected from SMP)");
+                javax.net.ssl.X509TrustManager standardTrustManager = null;
+                javax.net.ssl.TrustManager[] trustManagers = tmf.getTrustManagers();
+                if (trustManagers != null && trustManagers.length > 0 && trustManagers[0] instanceof javax.net.ssl.X509TrustManager) {
+                    standardTrustManager = (javax.net.ssl.X509TrustManager) trustManagers[0];
+                }
+
+                // Wrap with lenient trust manager for better AS4 compatibility
+                javax.net.ssl.X509TrustManager lenientTrustManager =
+                    new LenientX509TrustManager(standardTrustManager, trustStore);
+
+                sslContext.init(null, new javax.net.ssl.TrustManager[]{lenientTrustManager},
+                    new java.security.SecureRandom());
+                logger.info("✓ Phase4 SSL context configured with managed truststore and lenient certificate validation");
+                logger.info("  (receiver certificates will be injected from SMP, intermediate CAs optional for chain validation)");
             }
             
             // Set as the global default SSL context for ALL TLS operations in this JVM
