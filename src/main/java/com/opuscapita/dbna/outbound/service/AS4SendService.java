@@ -4,6 +4,7 @@ import com.helger.commons.io.stream.StringInputStream;
 import com.helger.commons.mime.CMimeType;
 import com.helger.phase4.crypto.IAS4CryptoFactory;
 import com.helger.phase4.messaging.domain.MessageHelperMethods;
+import com.helger.phase4.profile.dbnalliance.DBNAlliancePMode;
 import com.helger.phase4.sender.AS4Sender;
 import com.helger.phase4.sender.AbstractAS4UserMessageBuilder;
 import com.helger.phase4.attachment.AS4OutgoingAttachment;
@@ -834,9 +835,12 @@ public class AS4SendService implements SendService {
                 .messageID(messageId)
                 .conversationID(conversationId)
                 // Sender Party - Required
+                // DBNA (BDXR AS4) requires PartyId/@type = "http://docs.oasis-open.org/bdxr/AS4/1"
+                .fromPartyIDType(DBNAlliancePMode.DEFAULT_PARTY_TYPE_ID)
                 .fromPartyID(fromParty)
                 .fromRole(fromPartyRole)
                 // Receiver Party - Required
+                .toPartyIDType(DBNAlliancePMode.DEFAULT_PARTY_TYPE_ID)
                 .toPartyID(toParty)
                 .toRole(toPartyRole)
                 // Service - Required for AS4 user message (standard OASIS ebMS service)
