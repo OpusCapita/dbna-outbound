@@ -1,4 +1,5 @@
 package com.opuscapita.dbna.outbound.config;
+import com.helger.phase4.crypto.AS4CryptoFactoryInMemoryKeyStore;
 import com.helger.phase4.crypto.AS4CryptoFactoryProperties;
 import com.helger.phase4.crypto.AS4CryptoProperties;
 import com.helger.phase4.crypto.IAS4CryptoFactory;
