@@ -850,7 +850,10 @@ public class AS4SendService implements SendService {
                 // Agreement reference if provided
                 .agreementRef(request.getAgreementRef())
                 // Endpoint URL - Required (where to send the message)
-                .endpointURL(request.getReceiverEndpointUrl());
+                .endpointURL(request.getReceiverEndpointUrl())
+                // Response diagnostics: raw HTTP response (TRACE body / DEBUG metadata) and parsed signal message (DEBUG)
+                .rawResponseConsumer(AS4ResponseLogger.rawResponseConsumer())
+                .signalMsgConsumer(AS4ResponseLogger.signalMessageConsumer());
 
         // Configure encryption if requested and receiver certificate is available
         // Per DBNA spec: We encrypt with the receiver's certificate from SMP (AES-256-GCM)
