@@ -66,16 +66,16 @@ public final class AS4ResponseLogger {
                 if (response.hasResponseStatusLine()) {
                     StatusLine status = response.getResponseStatusLine();
                     sb.append("  HTTP status:        ").append(status.getProtocolVersion()).append(' ')
-                        .append(status.getStatusCode()).append(' ').append(status.getReasonPhrase()).append('\n');
+                            .append(status.getStatusCode()).append(' ').append(status.getReasonPhrase()).append('\n');
                 } else {
                     sb.append("  HTTP status:        <not available>\n");
                 }
                 sb.append("  Response size:      ")
-                    .append(response.hasResponse() ? response.getResponse().length + " bytes" : "<empty>").append('\n');
+                        .append(response.hasResponse() ? response.getResponse().length + " bytes" : "<empty>").append('\n');
                 sb.append("  HTTP headers:\n");
                 if (response.getResponseHeaders() != null) {
                     response.getResponseHeaders().getAllHeaderLines(true)
-                        .forEach(line -> sb.append("    ").append(line).append('\n'));
+                            .forEach(line -> sb.append("    ").append(line).append('\n'));
                 }
                 sb.append("=============================================");
                 logger.debug(sb.toString());
@@ -83,9 +83,9 @@ public final class AS4ResponseLogger {
 
             if (logger.isTraceEnabled() && response.hasResponse()) {
                 String contentType = response.getResponseHeaders() != null
-                    ? response.getResponseHeaders().getFirstHeaderValue("Content-Type") : null;
+                        ? response.getResponseHeaders().getFirstHeaderValue("Content-Type") : null;
                 logger.trace("\n======== AS4 RAW RESPONSE (body) ========\n{}\n=========================================",
-                    formatBody(response.getResponse(), contentType));
+                        formatBody(response.getResponse(), contentType));
             }
         } catch (Exception e) {
             logger.warn("Failed to log raw AS4 response: {}", e.getMessage(), e);
@@ -149,10 +149,10 @@ public final class AS4ResponseLogger {
 
             if (logger.isTraceEnabled()) {
                 logger.trace("\n======== AS4 RESPONSE SOAP (original) ========\n{}\n==============================================",
-                    toPrettyXml(state.getOriginalSoapDocument()));
+                        toPrettyXml(state.getOriginalSoapDocument()));
                 if (state.getDecryptedSoapDocument() != null) {
                     logger.trace("\n======== AS4 RESPONSE SOAP (decrypted) ========\n{}\n===============================================",
-                        toPrettyXml(state.getDecryptedSoapDocument()));
+                            toPrettyXml(state.getDecryptedSoapDocument()));
                 }
             }
         } catch (Exception e) {
@@ -176,13 +176,13 @@ public final class AS4ResponseLogger {
         sb.append("  Errors:              ").append(signal.getErrorCount()).append('\n');
         for (Ebms3Error error : signal.getError()) {
             sb.append("    - code=").append(error.getErrorCode())
-                .append(", severity=").append(error.getSeverity())
-                .append(", category=").append(error.getCategory())
-                .append(", shortDescription=").append(error.getShortDescription()).append('\n');
+                    .append(", severity=").append(error.getSeverity())
+                    .append(", category=").append(error.getCategory())
+                    .append(", shortDescription=").append(error.getShortDescription()).append('\n');
             sb.append("      description=").append(error.getDescription() != null ? error.getDescription().getValue() : null).append('\n');
             sb.append("      errorDetail=").append(error.getErrorDetail()).append('\n');
             sb.append("      origin=").append(error.getOrigin())
-                .append(", refToMessageInError=").append(error.getRefToMessageInError()).append('\n');
+                    .append(", refToMessageInError=").append(error.getRefToMessageInError()).append('\n');
         }
     }
 

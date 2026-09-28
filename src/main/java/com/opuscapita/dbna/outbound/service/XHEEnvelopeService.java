@@ -115,7 +115,7 @@ public class XHEEnvelopeService {
             fromPartyIdentElement.setPrefix("xha");
             fromPartyElement.appendChild(fromPartyIdentElement);
 
-            addTextElement(xheDocument, fromPartyIdentElement, XHB_NAMESPACE, "ID", senderId, "xhb");
+            addPartyId(xheDocument, fromPartyIdentElement, senderId, "sender");
 
             // Add ToParty
             Element toPartyElement = xheDocument.createElementNS(XHA_NAMESPACE, "ToParty");
@@ -126,7 +126,7 @@ public class XHEEnvelopeService {
             toPartyIdentElement.setPrefix("xha");
             toPartyElement.appendChild(toPartyIdentElement);
 
-            addTextElement(xheDocument, toPartyIdentElement, XHB_NAMESPACE, "ID", receiverId, "xhb");
+            addPartyId(xheDocument, toPartyIdentElement, receiverId, "receiver");
 
             // Create Payloads container
             Element payloadsElement = xheDocument.createElementNS(XHA_NAMESPACE, "Payloads");
@@ -138,15 +138,21 @@ public class XHEEnvelopeService {
             payloadElement.setPrefix("xha");
             payloadsElement.appendChild(payloadElement);
 
+            // Payload/ID (1..1) - ordinal position of the payload, starting with 1
+            addTextElement(xheDocument, payloadElement, XHB_NAMESPACE, "ID", "1", "xhb");
+
             // Add ContentTypeCode
             Element contentTypeElement = addTextElement(xheDocument, payloadElement, XHB_NAMESPACE, "ContentTypeCode", MIME_TYPE, "xhb");
             contentTypeElement.setAttribute("listID", MIME_LIST_ID);
 
-            // Add Payload CustomizationID
-            addTextElement(xheDocument, payloadElement, XHB_NAMESPACE, "CustomizationID", customizationId != null ? customizationId : "", "xhb");
-
-            // Add Payload ProfileID
-            addTextElement(xheDocument, payloadElement, XHB_NAMESPACE, "ProfileID", profileId != null ? profileId : "", "xhb");
+            // Payload CustomizationID / ProfileID (0..1) - MUST NOT be used when not defined
+            if (customizationId != null && !customizationId.isBlank()) {
+                Element payloadCustomizationId = addTextElement(xheDocument, payloadElement, XHB_NAMESPACE, "CustomizationID", customizationId, "xhb");
+                payloadCustomizationId.setAttribute("schemeID", DBNA_CUSTOMIZATION_SCHEME);
+            }
+            if (profileId != null && !profileId.isBlank()) {
+                addTextElement(xheDocument, payloadElement, XHB_NAMESPACE, "ProfileID", profileId, "xhb");
+            }
 
             // Add InstanceEncryptionIndicator (false for non-encrypted payloads)
             addTextElement(xheDocument, payloadElement, XHB_NAMESPACE, "InstanceEncryptionIndicator", "false", "xhb");
@@ -172,6 +178,26 @@ public class XHEEnvelopeService {
             logger.error("Failed to create XHE envelope: {}", e.getMessage(), e);
             throw new Exception("Failed to wrap UBL document in XHE envelope: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Adds a PartyIdentification/ID element per DBNA Policy for Using Identifiers:
+     * the combined "{scheme}::{value}" form (e.g. "FI:OVT::003728468254") is split into
+     * {@code <xhb:ID schemeID="FI:OVT">003728468254</xhb:ID>}.
+     */
+    private void addPartyId(Document doc, Element partyIdentification, String participantId, String role) {
+        if (participantId == null || participantId.isBlank()) {
+            throw new IllegalArgumentException("XHE " + role + " party identifier is missing");
+        }
+        int separator = participantId.indexOf("::");
+        if (separator <= 0 || separator + 2 >= participantId.length()) {
+            throw new IllegalArgumentException("XHE " + role + " party identifier '" + participantId +
+                "' is not in the '{scheme}::{identifier}' format required to derive ID/@schemeID");
+        }
+        String scheme = participantId.substring(0, separator).trim();
+        String value = participantId.substring(separator + 2).trim();
+        Element idElement = addTextElement(doc, partyIdentification, XHB_NAMESPACE, "ID", value, "xhb");
+        idElement.setAttribute("schemeID", scheme);
     }
 
     /**
