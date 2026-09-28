@@ -73,7 +73,8 @@ dependencies {
     
     // BouncyCastle for X.509 certificate generation (testing/dummy certificates)
     implementation("org.bouncycastle:bcpkix-jdk18on:1.79")
-    
+    implementation("org.bouncycastle:bcprov-jdk18on:1.79")
+
     // Apache HttpClient 5 - explicitly declared for SSL/TLS support
     implementation("org.apache.httpcomponents.client5:httpclient5")
     

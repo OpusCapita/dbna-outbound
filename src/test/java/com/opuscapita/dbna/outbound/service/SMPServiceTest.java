@@ -18,18 +18,24 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("SMPService Unit Tests")
 class SMPServiceTest {
 
-    @Mock
-    private HttpClient httpClient;
+     @Mock
+     private HttpClient httpClient;
 
-    @Mock
-    private CertificateValidationService certificateValidationService;
+     @Mock
+     private CertificateValidationService certificateValidationService;
 
-    private SMPService smpService;
+     @Mock
+     private CertificateChainBuilder certificateChainBuilder;
 
-    @BeforeEach
-    void setUp() {
-        smpService = new SMPService(httpClient, certificateValidationService);
-    }
+     @Mock
+     private TruststoreManager truststoreManager;
+
+     private SMPService smpService;
+
+     @BeforeEach
+     void setUp() {
+         smpService = new SMPService(httpClient, certificateValidationService, certificateChainBuilder, truststoreManager);
+     }
 
     // === Constructor Tests ===
 

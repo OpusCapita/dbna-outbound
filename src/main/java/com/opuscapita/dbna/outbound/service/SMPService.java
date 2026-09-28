@@ -41,18 +41,25 @@ public class SMPService {
     private static final String HEADER_LAST_MODIFIED = "Last-Modified";
     private static final long CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-    private final HttpClient httpClient;
-    private final CertificateValidationService certificateValidationService;
+     private final HttpClient httpClient;
+     private final CertificateValidationService certificateValidationService;
+     private final CertificateChainBuilder certificateChainBuilder;
+     private final TruststoreManager truststoreManager;
 
-    // Cache for ServiceGroup and ServiceMetadata resources
-    private final ConcurrentHashMap<String, CachedSMPResource> resourceCache = new ConcurrentHashMap<>();
-    
-    @Autowired
-    public SMPService(HttpClient httpClient, CertificateValidationService certificateValidationService) {
-        this.httpClient = httpClient;
-        this.certificateValidationService = certificateValidationService;
-    }
-    
+     // Cache for ServiceGroup and ServiceMetadata resources
+     private final ConcurrentHashMap<String, CachedSMPResource> resourceCache = new ConcurrentHashMap<>();
+
+     @Autowired
+     public SMPService(HttpClient httpClient,
+                       CertificateValidationService certificateValidationService,
+                       CertificateChainBuilder certificateChainBuilder,
+                       TruststoreManager truststoreManager) {
+         this.httpClient = httpClient;
+         this.certificateValidationService = certificateValidationService;
+         this.certificateChainBuilder = certificateChainBuilder;
+         this.truststoreManager = truststoreManager;
+     }
+
     /**
      * Discovers service endpoints for a given document type and process
      * According to DBNA SMP Profile v1.0, also extracts the receiver's certificate
@@ -396,15 +403,25 @@ public class SMPService {
                                  logger.info("Successfully extracted X.509 certificate from SMP Endpoint: Subject={}, Issuer={}",
                                      cert.getSubjectX500Principal(), cert.getIssuerX500Principal());
 
-                                 // Validate the certificate after extraction
-                                 if (validateReceiverCertificate(cert)) {
-                                     logger.info("✓ Receiver certificate from SMP has been validated successfully");
-                                     return cert;
-                                 } else {
-                                     logger.error("✗ Receiver certificate from SMP failed validation and will NOT be added to truststore. " +
-                                         "AS4 message transmission may fail for signature verification.");
-                                     return null;
-                                 }
+                                  // Validate the certificate after extraction
+                                  if (validateReceiverCertificate(cert)) {
+                                      logger.info("✓ Receiver certificate from SMP has been validated successfully");
+
+                                      // Attempt to build certificate chain from AIA extension for PKIX validation
+                                      logger.debug("Attempting to fetch certificate chain from AIA extension for PKIX path validation");
+                                      try {
+                                          certificateChainBuilder.buildChainFromAIA(cert, truststoreManager);
+                                      } catch (Exception e) {
+                                          logger.warn("Failed to build certificate chain from AIA: {}. " +
+                                              "Response validation may fail if intermediate certificates are required.", e.getMessage());
+                                      }
+
+                                      return cert;
+                                  } else {
+                                      logger.error("✗ Receiver certificate from SMP failed validation and will NOT be added to truststore. " +
+                                          "AS4 message transmission may fail for signature verification.");
+                                      return null;
+                                  }
                              } catch (Exception e) {
                                  logger.warn("Failed to parse X509Certificate from SMP Endpoint: {}", e.getMessage());
                                  return null;
