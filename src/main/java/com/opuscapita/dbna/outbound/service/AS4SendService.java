@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Element;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -316,38 +317,38 @@ public class AS4SendService implements SendService {
             // Validate request parameters
             if (request.getUblDocumentContent() == null || request.getUblDocumentContent().trim().isEmpty()) {
                 logger.warn("UBL document content is required");
-                return responseBuilder
+                return logAndReturnResponse(responseBuilder
                         .success(false)
                         .status(AS4SendStatus.VALIDATION_FAILED)
                         .errorMessage("UBL document content is required")
-                        .build();
+                        .build());
             }
 
             if (!isValidEndpointUrl(request.getReceiverEndpointUrl())) {
                 logger.warn("Receiver endpoint URL is required");
-                return responseBuilder
+                return logAndReturnResponse(responseBuilder
                         .success(false)
                         .status(AS4SendStatus.VALIDATION_FAILED)
                         .errorMessage("Receiver endpoint URL is required")
-                        .build();
+                        .build());
             }
 
             if (!isValidString(request.getSenderId())) {
                 logger.warn("Sender ID is required");
-                return responseBuilder
+                return logAndReturnResponse(responseBuilder
                         .success(false)
                         .status(AS4SendStatus.VALIDATION_FAILED)
                         .errorMessage("Sender ID is required")
-                        .build();
+                        .build());
             }
 
             if (!isValidString(request.getReceiverId())) {
                 logger.warn("Receiver ID is required");
-                return responseBuilder
+                return logAndReturnResponse(responseBuilder
                         .success(false)
                         .status(AS4SendStatus.VALIDATION_FAILED)
                         .errorMessage("Receiver ID is required")
-                        .build();
+                        .build());
             }
 
             // Validate UBL document
@@ -355,11 +356,11 @@ public class AS4SendService implements SendService {
                 ublDocumentService.validateUBLDocument(request.getUblDocumentContent());
             } catch (Exception e) {
                 logger.warn("Invalid UBL 2.3 document format: {}", e.getMessage());
-                return responseBuilder
+                return logAndReturnResponse(responseBuilder
                         .success(false)
                         .status(AS4SendStatus.VALIDATION_FAILED)
                         .errorMessage("Invalid UBL 2.3 document format: " + e.getMessage())
-                        .build();
+                        .build());
             }
 
             // Inject receiver certificate into truststore if available
@@ -593,14 +594,14 @@ public class AS4SendService implements SendService {
                                 // The AS4 message was likely sent successfully (HTTP 200+), but the receipt is malformed
                                 // We treat this as a partial success: message sent, but receipt validation failed
                                 // This is a known issue with some non-compliant AS4 endpoints
-                                return responseBuilder
+                                return logAndReturnResponse(responseBuilder
                                         .success(true)
                                         .messageId(messageId)
                                         .status(AS4SendStatus.SENT_RECEIPT_MALFORMED)
                                         .warningMessage("AS4 message sent successfully, but receiver's receipt was malformed (empty Receipt element). " +
                                                 "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
                                                 "The message delivery status is unknown.")
-                                        .build();
+                                        .build());
                             }
 
                             // Handle malformed receipt with invalid ReceiptChild element (CVC schema validation errors)
@@ -613,14 +614,14 @@ public class AS4SendService implements SendService {
                                 // The AS4 message was likely sent successfully (HTTP 200+), but the receipt is malformed
                                 // We treat this as a partial success: message sent, but receipt validation failed
                                 // This is a known issue with some non-compliant AS4 endpoints
-                                return responseBuilder
+                                return logAndReturnResponse(responseBuilder
                                         .success(true)
                                         .messageId(messageId)
                                         .status(AS4SendStatus.SENT_RECEIPT_MALFORMED)
                                         .warningMessage("AS4 message sent successfully, but receiver's receipt was malformed (invalid ReceiptChild element). " +
                                                 "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
                                                 "The message delivery status is unknown.")
-                                        .build();
+                                        .build());
                             }
 
                             // Handle other schema validation errors in receipt
@@ -629,14 +630,14 @@ public class AS4SendService implements SendService {
                                         "This indicates the remote endpoint may have sent an invalid or non-compliant receipt. " +
                                         "Error details: {}", saxErrorMsg);
 
-                                return responseBuilder
+                                return logAndReturnResponse(responseBuilder
                                         .success(true)
                                         .messageId(messageId)
                                         .status(AS4SendStatus.SENT_RECEIPT_INVALID)
                                         .warningMessage("AS4 message sent successfully, but receiver's receipt failed schema validation. " +
                                                 "This indicates the receiving endpoint may have a non-compliant AS4 implementation. " +
                                                 "The message delivery status is unknown.")
-                                        .build();
+                                        .build());
                             }
 
                             // Handle general non-XML or invalid XML responses
@@ -651,24 +652,24 @@ public class AS4SendService implements SendService {
                                 // 2. The endpoint returned an HTML error page
                                 // 3. The endpoint is not a proper AS4 endpoint
                                 // We treat this as a transmission error since we can't verify receipt
-                                return responseBuilder
+                                return logAndReturnResponse(responseBuilder
                                         .success(false)
                                         .status(AS4SendStatus.TRANSMISSION_ERROR)
                                         .errorMessage("AS4 message may have been sent, but receiver returned non-SOAP response. " +
                                                 "Endpoint may not support proper AS4 signal message receipts. " +
                                                 "This is common with REST/JSON endpoints instead of SOAP/AS4 endpoints.")
-                                        .build();
+                                        .build());
                             }
                         }
 
                         // Check if the exception indicates a configuration issue
                         if (exMsg != null && (exMsg.contains("mandatory field") || exMsg.contains("PMode"))) {
                             logger.error("CRITICAL: AS4 message send failed due to missing fields or configuration issues: {}", exMsg);
-                            return responseBuilder
+                            return logAndReturnResponse(responseBuilder
                                     .success(false)
                                     .status(AS4SendStatus.FAILED)
                                     .errorMessage("AS4 send failed: " + exMsg)
-                                    .build();
+                                    .build());
                         }
 
                         // For other exceptions, re-throw to be caught by outer handler
@@ -680,11 +681,11 @@ public class AS4SendService implements SendService {
                     if (sendResult == null) {
                         logger.error("CRITICAL: AS4 sendMessageAndCheckForReceipt() returned null. " +
                                 "This indicates the message was likely NOT sent.");
-                        return responseBuilder
+                        return logAndReturnResponse(responseBuilder
                                 .success(false)
                                 .status(AS4SendStatus.FAILED)
                                 .errorMessage("AS4 send failed: sendMessageAndCheckForReceipt() returned null")
-                                .build();
+                                .build());
                     }
 
                     // Check if the result indicates success
@@ -692,11 +693,11 @@ public class AS4SendService implements SendService {
                     logger.debug("AS4 send result: {}", sendResult);
                     if (sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.SUCCESS) {
                         logger.info("AS4 message sent successfully to DBNA network. Message ID: {}", messageId);
-                        return responseBuilder
+                        return logAndReturnResponse(responseBuilder
                                 .success(true)
                                 .messageId(messageId)
                                 .status(AS4SendStatus.SENT)
-                                .build();
+                                .build());
                     } else {
                         // Send failed - result indicates an error condition
                         logger.error("CRITICAL: AS4 sendMessageAndCheckForReceipt() returned failure status: {}", sendResult);
@@ -713,11 +714,11 @@ public class AS4SendService implements SendService {
                             errorMsg = String.format("AS4 send failed with status: %s", sendResult);
                         }
 
-                        return responseBuilder
+                        return logAndReturnResponse(responseBuilder
                                 .success(false)
                                 .status(sendResult == AbstractAS4UserMessageBuilder.ESimpleUserMessageSendResult.TRANSPORT_ERROR ? AS4SendStatus.TRANSMISSION_ERROR : AS4SendStatus.FAILED)
                                 .errorMessage(errorMsg)
-                                .build();
+                                .build());
                     }
                 } finally {
                     // Only end scope if we created it
@@ -746,19 +747,19 @@ public class AS4SendService implements SendService {
                     }
                 }
 
-                return responseBuilder
+                return logAndReturnResponse(responseBuilder
                         .success(false)
                         .status(AS4SendStatus.FAILED)
                         .errorMessage("Failed to send message: " + errorMsg)
-                        .build();
+                        .build());
             }
         } catch (Exception e) {
             logger.error("Error preparing AS4 message for DBNA network", e);
-            return responseBuilder
+            return logAndReturnResponse(responseBuilder
                     .success(false)
                     .status(AS4SendStatus.ERROR)
                     .errorMessage(e.getMessage())
-                    .build();
+                    .build());
         }
     }
 
@@ -1003,5 +1004,22 @@ public class AS4SendService implements SendService {
             logger.debug("Failed to extract XML structure preview", e);
             return "Failed to parse XML structure: " + e.getMessage();
         }
+    }
+
+    /**
+     * Helper method to log AS4 response at trace level
+     * Pretty-prints the response as JSON regardless of success/failure status
+     */
+    private AS4SendResponse logAndReturnResponse(AS4SendResponse response) {
+        if (response != null) {
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                String responseJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(response);
+                logger.trace("Full AS4 send response (pretty-printed JSON):\n{}", responseJson);
+            } catch (Exception e) {
+                logger.trace("AS4 send response: {}", response);
+            }
+        }
+        return response;
     }
 }

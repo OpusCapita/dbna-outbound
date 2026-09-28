@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.security.cert.X509Certificate;
 
@@ -234,6 +235,15 @@ public class AS4SendController {
         logger.info("Step 6: Sending UBL document via AS4 protocol to DBNA network");
         try {
             AS4SendResponse response = as4SendService.sendAS4Message(request);
+
+            // Log full response at trace level (both success and failure)
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                String responseJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(response);
+                logger.trace("Full AS4 send response (pretty-printed JSON):\n{}", responseJson);
+            } catch (Exception logEx) {
+                logger.trace("AS4 send response: {}", response, logEx);
+            }
 
             if (response.isSuccess()) {
                 logger.info("AS4 transmission successful - MessageID: {}", response.getMessageId());
