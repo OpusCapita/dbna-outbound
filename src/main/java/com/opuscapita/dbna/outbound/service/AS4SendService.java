@@ -112,7 +112,7 @@ public class AS4SendService implements SendService {
      * instead of binary. Signature/encryption cover the attachment content only
      * (Attachment-Content-Only), so this does not affect security processing.
      */
-    @Value("${dbna.attachment.base64-transfer-encoding:true}")
+    @Value("${dbna.attachment.base64-transfer-encoding:false}")
     private boolean attachmentBase64TransferEncoding;
 
     @jakarta.annotation.PostConstruct

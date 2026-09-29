@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.opuscapita.dbna.outbound"
-version = "1.2.6"
+version = "1.2.7"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
