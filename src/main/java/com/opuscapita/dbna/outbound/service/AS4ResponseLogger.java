@@ -63,29 +63,28 @@ public final class AS4ResponseLogger {
                 StringBuilder sb = new StringBuilder("\n======== AS4 RAW RESPONSE (metadata) ========\n");
                 sb.append("  Request Message ID: ").append(response.getMessageID()).append('\n');
                 sb.append("  Sent at:            ").append(response.getSentDateTime()).append('\n');
-                if (response.hasResponseStatusLine()) {
-                    StatusLine status = response.getResponseStatusLine();
+                StatusLine status = response.getResponseStatusLine();
+                if (status != null) {
                     sb.append("  HTTP status:        ").append(status.getProtocolVersion()).append(' ')
                             .append(status.getStatusCode()).append(' ').append(status.getReasonPhrase()).append('\n');
                 } else {
                     sb.append("  HTTP status:        <not available>\n");
                 }
+                byte[] body = response.getResponse();
                 sb.append("  Response size:      ")
-                        .append(response.hasResponse() ? response.getResponse().length + " bytes" : "<empty>").append('\n');
+                        .append(body != null ? body.length + " bytes" : "<empty>").append('\n');
                 sb.append("  HTTP headers:\n");
-                if (response.getResponseHeaders() != null) {
-                    response.getResponseHeaders().getAllHeaderLines(true)
-                            .forEach(line -> sb.append("    ").append(line).append('\n'));
-                }
+                response.getResponseHeaders().getAllHeaderLines(true)
+                        .forEach(line -> sb.append("    ").append(line).append('\n'));
                 sb.append("=============================================");
                 logger.debug(sb.toString());
             }
 
-            if (logger.isTraceEnabled() && response.hasResponse()) {
-                String contentType = response.getResponseHeaders() != null
-                        ? response.getResponseHeaders().getFirstHeaderValue("Content-Type") : null;
+            byte[] responseBody = response.getResponse();
+            if (logger.isTraceEnabled() && responseBody != null) {
+                String contentType = response.getResponseHeaders().getFirstHeaderValue("Content-Type");
                 logger.trace("\n======== AS4 RAW RESPONSE (body) ========\n{}\n=========================================",
-                        formatBody(response.getResponse(), contentType));
+                        formatBody(responseBody, contentType));
             }
         } catch (Exception e) {
             logger.warn("Failed to log raw AS4 response: {}", e.getMessage(), e);
@@ -218,10 +217,9 @@ public final class AS4ResponseLogger {
         sb.append("  Header processing successful:").append(' ').append(state.isSoapHeaderElementProcessingSuccessful()).append('\n');
         sb.append("  Ping message:                ").append(state.isPingMessage()).append('\n');
         appendCertificate(sb, "Signing certificate", state.getSigningCertificate());
-        appendCertificate(sb, "Used certificate", state.getUsedCertificate());
         appendCertificate(sb, "Decrypting certificate", state.getDecryptingCertificate());
-        if (state.hasSoapWSS4JException()) {
-            Exception ex = state.getSoapWSS4JException();
+        Exception ex = state.getSoapWSS4JException();
+        if (ex != null) {
             sb.append("  WSS4J exception:             ").append(ex.getClass().getName()).append(": ").append(ex.getMessage()).append('\n');
             Throwable cause = ex.getCause();
             while (cause != null) {
