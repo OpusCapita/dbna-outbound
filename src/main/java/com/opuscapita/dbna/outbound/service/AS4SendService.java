@@ -2,7 +2,11 @@ package com.opuscapita.dbna.outbound.service;
 
 import com.helger.commons.io.stream.StringInputStream;
 import com.helger.commons.mime.CMimeType;
+import com.helger.phase4.client.IAS4ClientBuildMessageCallback;
 import com.helger.phase4.crypto.IAS4CryptoFactory;
+import com.helger.phase4.messaging.mime.AS4MimeMessage;
+import jakarta.mail.BodyPart;
+import jakarta.mail.internet.MimeMultipart;
 import com.helger.phase4.messaging.domain.MessageHelperMethods;
 import com.helger.phase4.profile.dbnalliance.DBNAlliancePMode;
 import com.helger.phase4.sender.AS4Sender;
@@ -888,6 +892,35 @@ public class AS4SendService implements SendService {
         }
 
         return builder;
+    }
+
+    /**
+     * Creates a Phase4 build-message callback that switches all attachment parts
+     * (every MIME part after the SOAP envelope) to Content-Transfer-Encoding: base64.
+     */
+    private IAS4ClientBuildMessageCallback createBase64AttachmentCallback() {
+        return new IAS4ClientBuildMessageCallback() {
+            @Override
+            public void onEncryptedMimeMessage(AS4MimeMessage mimeMessage) {
+                try {
+                    Object content = mimeMessage.getContent();
+                    if (!(content instanceof MimeMultipart multipart)) {
+                        logger.warn("Encrypted MIME message content is not multipart ({}); transfer encoding unchanged",
+                                content == null ? "null" : content.getClass().getName());
+                        return;
+                    }
+                    // Part 0 is the SOAP envelope; attachments follow
+                    for (int i = 1; i < multipart.getCount(); i++) {
+                        BodyPart part = multipart.getBodyPart(i);
+                        part.setHeader("Content-Transfer-Encoding", "base64");
+                        logger.debug("Set Content-Transfer-Encoding: base64 on attachment part {} (Content-ID: {})",
+                                i, String.join(",", part.getHeader("Content-ID") != null ? part.getHeader("Content-ID") : new String[0]));
+                    }
+                } catch (Exception e) {
+                    logger.error("Failed to switch attachment Content-Transfer-Encoding to base64", e);
+                }
+            }
+        };
     }
 
     /**
