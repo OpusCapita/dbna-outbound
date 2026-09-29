@@ -35,7 +35,7 @@ dbna:
   xhe:
     avoid: ${DBNA_XHE_AVOID:false}  # Set to true to send documents without XHE envelope (standalone mode). Default: false (use XHE envelope)
   attachment:
-    base64-transfer-encoding: ${DBNA_ATTACHMENT_BASE64:false}  # Diagnostic: send encrypted attachments with Content-Transfer-Encoding base64 instead of binary
+    base64-transfer-encoding: ${DBNA_ATTACHMENT_BASE64:true}  # Diagnostic: send encrypted attachments with Content-Transfer-Encoding base64 instead of binary
 
 # Sirius Configuration
 sirius:
