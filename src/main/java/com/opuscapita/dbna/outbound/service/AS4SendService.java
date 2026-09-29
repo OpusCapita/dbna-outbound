@@ -108,6 +108,20 @@ public class AS4SendService implements SendService {
     private boolean xheAvoid;
 
     /**
+     * When enabled, encrypted attachment MIME parts are sent with Content-Transfer-Encoding: base64
+     * instead of binary. Signature/encryption cover the attachment content only
+     * (Attachment-Content-Only), so this does not affect security processing.
+     */
+    @Value("${dbna.attachment.base64-transfer-encoding:true}")
+    private boolean attachmentBase64TransferEncoding;
+
+    @jakarta.annotation.PostConstruct
+    void logSendConfiguration() {
+        logger.info("AS4SendService configuration: xheAvoid={}, attachmentBase64TransferEncoding={}",
+                xheAvoid, attachmentBase64TransferEncoding);
+    }
+
+    /**
      * Constructor with dependency injection
      * Spring will automatically inject all required bean dependencies
      */
@@ -882,6 +896,11 @@ public class AS4SendService implements SendService {
             }
         }
 
+        if (attachmentBase64TransferEncoding) {
+            logger.info("✓ Attachment Content-Transfer-Encoding override enabled: base64");
+            builder.buildMessageCallback(createBase64AttachmentCallback());
+        }
+
         // Configure signing if requested
         // We use the keystore certificate for signing (our certificate)
         if (request.isSignMessage()) {
@@ -913,7 +932,7 @@ public class AS4SendService implements SendService {
                     for (int i = 1; i < multipart.getCount(); i++) {
                         BodyPart part = multipart.getBodyPart(i);
                         part.setHeader("Content-Transfer-Encoding", "base64");
-                        logger.debug("Set Content-Transfer-Encoding: base64 on attachment part {} (Content-ID: {})",
+                        logger.info("Set Content-Transfer-Encoding: base64 on attachment part {} (Content-ID: {})",
                                 i, String.join(",", part.getHeader("Content-ID") != null ? part.getHeader("Content-ID") : new String[0]));
                     }
                 } catch (Exception e) {
