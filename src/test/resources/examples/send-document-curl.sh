@@ -27,6 +27,7 @@
 #   # With environment variables:
 #   AS4_API_TOKEN="your-secret-token" ./send-document-curl.sh
 #   AS4_RECEIVER_ID="FI:OVT::custom-receiver-id" ./send-document-curl.sh
+#   AS4_XML_FILE="path/to/invoice.xml" ./send-document-curl.sh
 
 set -e
 
@@ -42,11 +43,16 @@ SEND_ENDPOINT="/api/as4/send"
 # Initialize with defaults
 API_TOKEN="${AS4_API_TOKEN:-changeit}"
 RECEIVER_ID="${AS4_RECEIVER_ID:-FI:OVT::003728468254}"
+XML_FILE="${AS4_XML_FILE:-sample-invoice.xml}"
 
 # Parse command line arguments
-# Arguments are auto-detected by presence of ":" (receiver ID has it, token doesn't)
+# - Ends with ".xml" or is an existing file -> XML file
+# - Contains ":" -> receiver ID
+# - Otherwise -> API token
 for arg in "$@"; do
-  if [[ "$arg" == *":"* ]]; then
+  if [[ "$arg" == *.xml ]] || [ -f "$arg" ]; then
+    XML_FILE="$arg"
+  elif [[ "$arg" == *":"* ]]; then
     # Contains ":", so it's a receiver ID
     RECEIVER_ID="$arg"
   else
@@ -102,7 +108,7 @@ echo "Request Details:"
 echo "  Method:       POST"
 echo "  Content-Type: application/xml"
 echo "  Authorization: Bearer $([ "$API_TOKEN" = "changeit" ] && echo "changeit (default)" || echo "$API_TOKEN")"
-echo "  Body:         $(head -c 100 $XML_FILE)..."
+echo "  Body:         $(head -c 100 "$XML_FILE")..."
 echo ""
 
 # Send the request
