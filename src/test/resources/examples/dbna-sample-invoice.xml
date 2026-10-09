@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+    <cbc:UBLVersionID>2.3</cbc:UBLVersionID>
+    <cbc:CustomizationID>urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##DBNAlliance-1.0-data-Core
+    </cbc:CustomizationID>
+    <cbc:ProfileID>bdx:noprocess</cbc:ProfileID>
+    <cbc:ID>INVOICE-10004</cbc:ID>
+    <cbc:IssueDate>2023-03-20</cbc:IssueDate>
+    <cbc:DueDate>2023-04-19</cbc:DueDate>
+    <cbc:Note>This is an example Core Invoice</cbc:Note>
+    <cbc:DocumentCurrencyCode>USD</cbc:DocumentCurrencyCode>
+    <cac:OrderReference>
+        <cbc:ID>PO-4300022</cbc:ID>
+    </cac:OrderReference>
+    <cac:AccountingSupplierParty>
+        <cbc:CustomerAssignedAccountID>DUNS:123456789</cbc:CustomerAssignedAccountID>
+        <cac:Party>
+            <cac:PartyIdentification>
+                <cbc:ID schemeID="EIN">224466889</cbc:ID>
+            </cac:PartyIdentification>
+            <cac:PartyName>
+                <cbc:Name>Gadgets R Us, Inc.</cbc:Name>
+            </cac:PartyName>
+            <cac:PostalAddress>
+                <cbc:CityName>San Francisco</cbc:CityName>
+                <cbc:PostalZone>94107</cbc:PostalZone>
+                <cbc:CountrySubentityCode>CA</cbc:CountrySubentityCode>
+                <cac:AddressLine>
+                    <cbc:Line>24 Willie Mays Plz</cbc:Line>
+                </cac:AddressLine>
+                <cac:Country>
+                    <cbc:IdentificationCode>US</cbc:IdentificationCode>
+                </cac:Country>
+            </cac:PostalAddress>
+        </cac:Party>
+    </cac:AccountingSupplierParty>
+    <cac:AccountingCustomerParty>
+        <cac:Party>
+            <cac:PartyIdentification>
+                <cbc:ID schemeID="GLN">9977554433221</cbc:ID>
+            </cac:PartyIdentification>
+            <cac:PartyName>
+                <cbc:Name>ACME Corp.</cbc:Name>
+            </cac:PartyName>
+            <cac:PostalAddress>
+                <cbc:CityName>Cleveland</cbc:CityName>
+                <cbc:PostalZone>44114</cbc:PostalZone>
+                <cbc:CountrySubentityCode>OH</cbc:CountrySubentityCode>
+                <cac:AddressLine>
+                    <cbc:Line>1100 E 9th St.</cbc:Line>
+                </cac:AddressLine>
+                <cac:Country>
+                    <cbc:IdentificationCode>US</cbc:IdentificationCode>
+                </cac:Country>
+            </cac:PostalAddress>
+            <cac:Contact>
+                <cbc:Name>E. Presley</cbc:Name>
+            </cac:Contact>
+        </cac:Party>
+    </cac:AccountingCustomerParty>
+    <cac:PaymentMeans>
+        <cbc:PaymentMeansCode>T</cbc:PaymentMeansCode>
+        <cbc:PaymentID>INVOICE-10004</cbc:PaymentID>
+        <cac:PayeeFinancialAccount>
+            <cbc:ID>1234567890123</cbc:ID>
+            <cac:FinancialInstitutionBranch>
+                <cbc:ID>54321</cbc:ID>
+            </cac:FinancialInstitutionBranch>
+        </cac:PayeeFinancialAccount>
+    </cac:PaymentMeans>
+    <cac:AllowanceCharge>
+        <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
+        <cbc:AllowanceChargeReason>Returning customer's discount</cbc:AllowanceChargeReason>
+        <cbc:Amount currencyID="USD">100.00</cbc:Amount>
+    </cac:AllowanceCharge>
+    <cac:AllowanceCharge>
+        <cbc:ChargeIndicator>true</cbc:ChargeIndicator>
+        <cbc:AllowanceChargeReason>Plastic bag</cbc:AllowanceChargeReason>
+        <cbc:Amount currencyID="USD">1.00</cbc:Amount>
+    </cac:AllowanceCharge>
+    <cac:TaxTotal>
+        <cbc:TaxAmount currencyID="USD">25.50</cbc:TaxAmount>
+        <cac:TaxSubtotal>
+            <cbc:TaxAmount currencyID="USD">25.50</cbc:TaxAmount>
+            <cac:TaxCategory>
+                <cbc:ID>LT</cbc:ID>
+                <cac:TaxScheme>
+                    <cbc:ID>TAX</cbc:ID>
+                </cac:TaxScheme>
+            </cac:TaxCategory>
+        </cac:TaxSubtotal>
+    </cac:TaxTotal>
+    <cac:LegalMonetaryTotal>
+        <cbc:LineExtensionAmount currencyID="USD">250.00</cbc:LineExtensionAmount>
+        <cbc:TaxExclusiveAmount currencyID="USD">151.00</cbc:TaxExclusiveAmount>
+        <cbc:TaxInclusiveAmount currencyID="USD">176.50</cbc:TaxInclusiveAmount>
+        <cbc:AllowanceTotalAmount currencyID="USD">100.00</cbc:AllowanceTotalAmount>
+        <cbc:ChargeTotalAmount currencyID="USD">1.00</cbc:ChargeTotalAmount>
+        <cbc:PayableAmount currencyID="USD">176.50</cbc:PayableAmount>
+    </cac:LegalMonetaryTotal>
+    <cac:InvoiceLine>
+        <cbc:ID>1</cbc:ID>
+        <cbc:InvoicedQuantity>1</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="USD">150.00</cbc:LineExtensionAmount>
+        <cac:AllowanceCharge>
+            <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
+            <cbc:AllowanceChargeReason>March promotion</cbc:AllowanceChargeReason>
+            <cbc:Amount currencyID="USD">50.00</cbc:Amount>
+        </cac:AllowanceCharge>
+        <cac:Item>
+            <cbc:Name>Giant ballpoint pen</cbc:Name>
+        </cac:Item>
+        <cac:Price>
+            <cbc:PriceAmount currencyID="USD">200.00</cbc:PriceAmount>
+            <cbc:BaseQuantity>1</cbc:BaseQuantity>
+        </cac:Price>
+    </cac:InvoiceLine>
+    <cac:InvoiceLine>
+        <cbc:ID>2</cbc:ID>
+        <cbc:InvoicedQuantity>100</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="USD">100.00</cbc:LineExtensionAmount>
+        <cac:Item>
+            <cbc:Description>Jumbo papersheets for use with matching giant ballpointpen</cbc:Description>
+            <cbc:Name>Jumbo paper sheets</cbc:Name>
+        </cac:Item>
+        <cac:Price>
+            <cbc:PriceAmount currencyID="USD">1.00</cbc:PriceAmount>
+            <cbc:BaseQuantity>1</cbc:BaseQuantity>
+        </cac:Price>
+    </cac:InvoiceLine>
+</Invoice>
