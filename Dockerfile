@@ -36,6 +36,7 @@ RUN mkdir -p /app/storage /app/config /app/test && \
 
 # Copy test files
 COPY --from=builder /build/src/test/resources/examples/sample-invoice.xml /app/test/
+COPY --from=builder /build/src/test/resources/examples/dbna-sample-invoice.xml /app/test/
 COPY --from=builder /build/src/test/resources/examples/send-document-curl.sh /app/test/
 RUN chmod +x /app/test/send-document-curl.sh
 
