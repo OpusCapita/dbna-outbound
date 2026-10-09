@@ -20,9 +20,12 @@
 #   # With custom receiver ID:
 #   ./send-document-curl.sh "FI:OVT::custom-receiver-id"
 #
-#   # With both token and receiver ID (auto-detected by format):
+#   # With custom XML file (ends with .xml or is an existing file):
+#   ./send-document-curl.sh "path/to/invoice.xml"
+#
+#   # With token, receiver ID and XML file (auto-detected by format, any order):
 #   ./send-document-curl.sh "your-secret-token" "FI:OVT::custom-receiver-id"
-#   ./send-document-curl.sh "FI:OVT::custom-receiver-id" "your-secret-token"
+#   ./send-document-curl.sh "FI:OVT::custom-receiver-id" "your-secret-token" "invoice.xml"
 #
 #   # With environment variables:
 #   AS4_API_TOKEN="your-secret-token" ./send-document-curl.sh
@@ -70,9 +73,6 @@ DOC_TYPE_ID="bdx-docid-qns::urn:oasis:names:specification:ubl:schema:xsd:Invoice
 # Process Identifier (no process)
 PROCESS_ID="bdx:noprocess"
 
-# XML document file
-XML_FILE="sample-invoice.xml"
-
 echo "=========================================="
 echo "AS4SendController - Send Document Example"
 echo "=========================================="
@@ -90,7 +90,7 @@ echo ""
 # Check if XML file exists
 if [ ! -f "$XML_FILE" ]; then
     echo "Error: XML file not found: $XML_FILE"
-    echo "Please ensure sample-invoice.xml exists in the same directory."
+    echo "Please provide an existing XML file as an argument or via AS4_XML_FILE."
     exit 1
 fi
 
