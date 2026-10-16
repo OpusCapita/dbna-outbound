@@ -4,6 +4,11 @@ import com.helger.commons.io.stream.StringInputStream;
 import com.helger.commons.mime.CMimeType;
 import com.helger.phase4.client.IAS4ClientBuildMessageCallback;
 import com.helger.phase4.crypto.IAS4CryptoFactory;
+import com.helger.phase4.crypto.ECryptoAlgorithmCrypt;
+import com.helger.phase4.crypto.ECryptoKeyEncryptionAlgorithm;
+import com.helger.phase4.crypto.ECryptoKeyIdentifierType;
+import com.helger.phase4.crypto.ICryptoSessionKeyProvider;
+import org.apache.wss4j.common.WSS4JConstants;
 import com.helger.phase4.messaging.mime.AS4MimeMessage;
 import jakarta.mail.BodyPart;
 import jakarta.mail.internet.MimeMultipart;
@@ -889,7 +894,19 @@ public class AS4SendService implements SendService {
                 // CRITICAL: Provide the receiver certificate to Phase4 for encryption
                 // This tells Phase4's encryption engine (WSS4J) which certificate to use for encrypting the message
                 builder.receiverCertificate(request.getReceiverCertificate());
-                logger.debug("Phase4 will encrypt the message using AES-256-GCM (from PMode) with receiver's certificate");
+
+                // CRITICAL: Phase4 2.9.x defaults the symmetric session key (CEK) to AES-128 regardless of the
+                // PMode algorithm, so "aes256-gcm" would be declared while a 128-bit CEK is actually used.
+                // Strict receivers (e.g. Node.js aes-256-gcm) then fail with EBMS:0102. Force a 256-bit CEK
+                // and pin the DBNA key transport parameters explicitly.
+                builder.cryptParams()
+                        .setAlgorithmCrypt(ECryptoAlgorithmCrypt.AES_256_GCM)
+                        .setSessionKeyProvider(ICryptoSessionKeyProvider.INSTANCE_RANDOM_AES_256)
+                        .setKeyEncAlgorithm(ECryptoKeyEncryptionAlgorithm.RSA_OAEP_XENC11)
+                        .setMGFAlgorithm(WSS4JConstants.MGF_SHA256)
+                        .setDigestAlgorithm(WSS4JConstants.SHA256)
+                        .setKeyIdentifierType(ECryptoKeyIdentifierType.BST_DIRECT_REFERENCE);
+                logger.info("✓ Encryption params: AES-256-GCM with 256-bit CEK, RSA-OAEP (SHA-256 digest, MGF1-SHA256), BST direct reference");
             } else {
                 logger.warn("Encryption requested but no receiver certificate available from SMP. " +
                         "Encryption will fail - the message cannot be encrypted without the receiver's certificate.");
